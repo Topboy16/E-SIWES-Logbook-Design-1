@@ -40,8 +40,7 @@ The tech stack is built on **React (Vite)**, styled with **Tailwind CSS & Radix 
 
 ### Bug Fixes (Post Phase 2)
 * [x] **Fix `isSigningIn` race condition**: Set `isSigningIn.current = true` before `signInWithPassword` and reset on all exit paths in `AuthContext.tsx`.
-* [x] **Fix double profile fetch**: `onAuthStateChange` handler now skips `SIGNED_IN` when `isSigningIn.current` is true, since `signIn()` handles it directly.
-* [x] **Fix Supabase schema mismatch**: Configured Supabase client with `db: { schema: 'api' }` to match the project's exposed schemas (`api`, `graphql_public`).
+* [x] **Simplify auth event handling**: `onAuthStateChange` now skips both `INITIAL_SESSION` and `SIGNED_IN` entirely — `initializeAuth` handles existing sessions, `signIn()` handles user-initiated login. Eliminates race conditions and duplicate `fetchProfile` calls.
 * [x] **Wire up notifications**: Supervisor approve/reject/feedback actions now call `createNotification` targeting the student, with `entry_id` for deep linking.
 * [x] **Fix SignUp grid layout**: Changed `grid-cols-3` to `grid-cols-2` after admin role was removed.
 * [x] **Fix blob URL memory leak**: File preview thumbnails now use cached blob URLs with proper cleanup via `useEffect`.

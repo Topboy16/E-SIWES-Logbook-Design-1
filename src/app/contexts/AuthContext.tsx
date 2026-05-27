@@ -114,48 +114,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             async (event, session) => {
                 if (!mounted) return;
 
-                console.log('Auth event:', event, 'initialAuthDone:', initialAuthDone, 'isSigningIn:', isSigningIn.current);
-
-                // initializeAuth handles INITIAL_SESSION, skip entirely
-                if (event === 'INITIAL_SESSION') {
-                    return;
-                }
-
-                if (event === 'SIGNED_IN') {
-                    // Skip if signIn() is handling the profile fetch directly
-                    if (isSigningIn.current) {
-                        console.log('Skipping SIGNED_IN — signIn() is handling profile fetch');
-                        return;
-                    }
-                    // Skip redundant SIGNED_IN from page load (init already handled it)
-                    if (initialAuthDone) {
-                        console.log('Skipping redundant SIGNED_IN — init already done');
-                        return;
-                    }
-
-                    // Only reaches here for edge cases (e.g. OAuth redirects before init completes)
-                    setUser(session?.user ?? null);
-                    if (session?.user) {
-                        setLoading(true);
-                        const profileData = await fetchProfile(session.user.id);
-                        if (mounted) {
-                            if (profileData && profileData.email === 'user@example.com') {
-                                profileData.email = session.user.email;
-                            }
-                            setProfile(profileData);
-                            setUser(session.user);
-                            setLoading(false);
-                        }
-                    }
+                // INITIAL_SESSION: handled by initializeAuth above
+                // SIGNED_IN: handled by initializeAuth (existing session) or signIn() (user action)
+                // Skipping both avoids duplicate fetchProfile calls and race conditions.
+                if (event === 'INITIAL_SESSION' || event === 'SIGNED_IN') {
                     return;
                 }
 
                 if (event === 'SIGNED_OUT') {
-                    if (mounted) {
-                        setUser(null);
-                        setProfile(null);
-                        setLoading(false);
-                    }
+                    setUser(null);
+                    setProfile(null);
+                    setLoading(false);
                     return;
                 }
 
