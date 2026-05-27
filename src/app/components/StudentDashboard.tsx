@@ -101,9 +101,19 @@ export default function StudentDashboard() {
   useEffect(() => { setCurrentPage(1); }, [searchQuery, statusFilter]);
 
   // Calendar helpers
+  function getLocalDateString(date = new Date()) {
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, '0');
+    const d = String(date.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  }
+
   const calendarEntryMap = useMemo(() => {
-    const map: Record<string, LogbookEntry> = {};
-    entries.forEach(e => { map[e.entry_date] = e; });
+    const map: Record<string, LogbookEntry[]> = {};
+    entries.forEach(e => {
+      if (!map[e.entry_date]) map[e.entry_date] = [];
+      map[e.entry_date].push(e);
+    });
     return map;
   }, [entries]);
 
@@ -172,32 +182,40 @@ export default function StudentDashboard() {
     setSubmitting(true);
     setError("");
     try {
-      // Upload new files
-      let newAttachments: Attachment[] = [];
-      if (selectedFiles.length > 0) {
-        const tempId = editingEntry?.id || 'temp-' + Date.now();
-        newAttachments = await uploadFiles(user.id, tempId, selectedFiles);
-      }
-
-      // Combine existing (for edits) + new attachments
-      const allAttachments = [...existingAttachments, ...newAttachments];
+      const hoursWorked = parseInt(newEntry.hours) || 0;
 
       if (editingEntry) {
+        // For edits, the entry already has a real database ID
+        let newAttachments: Attachment[] = [];
+        if (selectedFiles.length > 0) {
+          newAttachments = await uploadFiles(user.id, editingEntry.id, selectedFiles);
+        }
+        const allAttachments = [...existingAttachments, ...newAttachments];
         await updateEntry(editingEntry.id, {
           title: newEntry.title,
           description: newEntry.description,
           entry_date: newEntry.date,
-          hours_worked: parseInt(newEntry.hours),
+          hours_worked: hoursWorked,
           attachments: allAttachments,
         });
       } else {
-        await createEntry(user.id, {
+        // For new entries, create first in the database to get a real database UUID (prevents orphaned files)
+        const created = await createEntry(user.id, {
           title: newEntry.title,
           description: newEntry.description,
           entry_date: newEntry.date,
-          hours_worked: parseInt(newEntry.hours),
-          attachments: allAttachments,
+          hours_worked: hoursWorked,
+          attachments: [],
         });
+
+        // Now upload files using the real database entry ID
+        if (selectedFiles.length > 0) {
+          const newAttachments = await uploadFiles(user.id, created.id, selectedFiles);
+          // Patch the entry with the uploaded files
+          await updateEntry(created.id, {
+            attachments: newAttachments,
+          });
+        }
       }
       setIsDialogOpen(false);
       setEditingEntry(null);
@@ -626,19 +644,38 @@ export default function StudentDashboard() {
                   {getCalendarDays().map((day, i) => {
                     if (!day) return <div key={`empty-${i}`} className="h-12" />;
                     const dateStr = getDateString(day);
-                    const entry = calendarEntryMap[dateStr];
-                    const isToday = dateStr === new Date().toISOString().split('T')[0];
-                    const statusColor = entry ? (entry.status === 'Approved' ? 'bg-green-100 border-green-400 text-green-800' : entry.status === 'Rejected' ? 'bg-red-100 border-red-400 text-red-800' : 'bg-yellow-100 border-yellow-400 text-yellow-800') : 'bg-white hover:bg-gray-50';
+                    const dayEntries = calendarEntryMap[dateStr] || [];
+                    const isToday = dateStr === getLocalDateString();
+                    
+                    let statusColor = 'bg-white hover:bg-gray-50';
+                    if (dayEntries.length > 0) {
+                      const allApproved = dayEntries.every(e => e.status === 'Approved');
+                      const anyRejected = dayEntries.some(e => e.status === 'Rejected');
+                      const anyPending = dayEntries.some(e => e.status === 'Pending');
+                      
+                      if (anyRejected) {
+                        statusColor = 'bg-red-100 border-red-400 text-red-800';
+                      } else if (anyPending) {
+                        statusColor = 'bg-yellow-100 border-yellow-400 text-yellow-800';
+                      } else if (allApproved) {
+                        statusColor = 'bg-green-100 border-green-400 text-green-800';
+                      }
+                    }
+
+                    const totalHoursWorked = dayEntries.reduce((sum, e) => sum + (Number(e.hours_worked) || 0), 0);
 
                     return (
                       <button key={day} onClick={() => {
-                        if (!entry) { setNewEntry({ ...newEntry, date: dateStr }); setIsDialogOpen(true); }
+                        if (dayEntries.length === 0) { 
+                          setNewEntry({ title: "", date: dateStr, description: "", hours: "" }); 
+                          setIsDialogOpen(true); 
+                        }
                       }}
                         className={`h-12 rounded-lg border text-sm flex flex-col items-center justify-center transition-all ${statusColor} ${isToday ? 'ring-2 ring-blue-500' : ''}`}
-                        title={entry ? `${entry.title} (${entry.status})` : 'Click to add entry'}
+                        title={dayEntries.length > 0 ? `${dayEntries.length} entries (${totalHoursWorked}h)` : 'Click to add entry'}
                       >
                         <span className="font-medium">{day}</span>
-                        {entry && <span className="text-[10px] truncate max-w-full px-1">{entry.hours_worked}h</span>}
+                        {dayEntries.length > 0 && <span className="text-[10px] truncate max-w-full px-1">{totalHoursWorked}h</span>}
                       </button>
                     );
                   })}

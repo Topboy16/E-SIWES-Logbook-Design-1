@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { BookOpen, AlertCircle, Loader2, Shield, Users } from 'lucide-react';
+import { BookOpen, AlertCircle, Loader2, Users } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -26,7 +26,6 @@ export default function SignUpPage() {
     const roles = [
         { id: 'student', name: 'Student', icon: BookOpen, color: 'bg-blue-500' },
         { id: 'supervisor', name: 'Supervisor', icon: Users, color: 'bg-green-500' },
-        { id: 'admin', name: 'Administrator', icon: Shield, color: 'bg-purple-500' },
     ];
 
     const handleSignUp = async (e: React.FormEvent) => {
@@ -172,20 +171,6 @@ export default function SignUpPage() {
                                 </>
                             )}
 
-                            {selectedRole === 'admin' && (
-                                <>
-                                    <div className="space-y-2">
-                                        <Label htmlFor="department">Department (Unit)</Label>
-                                        <Input id="department" placeholder="e.g. SIWES Unit"
-                                            value={department} onChange={(e) => setDepartment(e.target.value)} required />
-                                    </div>
-                                    <div className="space-y-2">
-                                        <Label htmlFor="staffId">Admin / Staff ID</Label>
-                                        <Input id="staffId" placeholder="e.g. ADM/001"
-                                            value={staffId} onChange={(e) => setStaffId(e.target.value)} required />
-                                    </div>
-                                </>
-                            )}
 
                             <div className="space-y-2">
                                 <Label htmlFor="password">Password</Label>

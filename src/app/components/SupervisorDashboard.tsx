@@ -17,8 +17,13 @@ import { Input } from "./ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 import { Checkbox } from "./ui/checkbox";
 import { useAuth } from "../contexts/AuthContext";
-import { getSupervisorPendingEntries, updateEntryStatus, addFeedback } from "../services/feedbackService";
-import { supabase } from "../../supabase";
+import { 
+  getSupervisorPendingEntries, 
+  updateEntryStatus, 
+  addFeedback,
+  getSupervisorStudents,
+  getSupervisorReviewedEntries
+} from "../services/feedbackService";
 import NotificationBell from "./NotificationBell";
 import { isImageFile, formatFileSize } from "../services/fileUploadService";
 
@@ -37,6 +42,7 @@ export default function SupervisorDashboard() {
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [error, setError] = useState("");
+  const [isRejectMode, setIsRejectMode] = useState(false);
 
   // Search & filter
   const [pendingSearch, setPendingSearch] = useState("");
@@ -56,29 +62,14 @@ export default function SupervisorDashboard() {
   async function loadData() {
     setLoading(true);
     try {
-      const [entriesData, studentsData] = await Promise.all([
+      const [entriesData, studentsData, reviewedData] = await Promise.all([
         getSupervisorPendingEntries(user.id),
-        supabase.from('profiles').select('*').eq('supervisor_id', user.id),
+        getSupervisorStudents(user.id),
+        getSupervisorReviewedEntries(user.id),
       ]);
       setPendingEntries(entriesData);
-      setStudents(studentsData.data || []);
-
-      // Load reviewed entries (history)
-      const studentIds = (studentsData.data || []).map((s: any) => s.id);
-      if (studentIds.length > 0) {
-        try {
-          const { data } = await supabase
-            .from('logbook_entries').select('*')
-            .in('student_id', studentIds)
-            .in('status', ['Approved', 'Rejected'])
-            .order('updated_at', { ascending: false });
-          const mapped = (data || []).map((entry: any) => {
-            const student = (studentsData.data || []).find((s: any) => s.id === entry.student_id);
-            return { ...entry, student_name: student?.full_name || 'Unknown' };
-          });
-          setReviewedEntries(mapped);
-        } catch { setReviewedEntries([]); }
-      }
+      setStudents(studentsData);
+      setReviewedEntries(reviewedData);
     } catch (err: any) { setError(err.message); }
     finally { setLoading(false); }
   }
@@ -89,10 +80,16 @@ export default function SupervisorDashboard() {
     finally { setActionLoading(null); }
   };
 
-  const handleReject = async (entryId: string) => {
-    setActionLoading(entryId);
-    try { await updateEntryStatus(entryId, 'Rejected'); await loadData(); } catch (err: any) { setError(err.message); }
-    finally { setActionLoading(null); }
+  const handleRequestRevisionClick = (entry: any) => {
+    setSelectedEntry(entry);
+    setIsRejectMode(true);
+    setFeedback("");
+  };
+
+  const handleFeedbackClick = (entry: any) => {
+    setSelectedEntry(entry);
+    setIsRejectMode(false);
+    setFeedback("");
   };
 
   const handleBatchApprove = async () => {
@@ -122,9 +119,18 @@ export default function SupervisorDashboard() {
 
   const handleSubmitFeedback = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedEntry) return;
-    try { await addFeedback(selectedEntry.id, user.id, feedback); setFeedback(""); setSelectedEntry(null); }
-    catch (err: any) { setError(err.message); }
+    if (!selectedEntry || !feedback.trim()) return;
+    setActionLoading(selectedEntry.id);
+    try {
+      await addFeedback(selectedEntry.id, user.id, feedback.trim());
+      if (isRejectMode) {
+        await updateEntryStatus(selectedEntry.id, 'Rejected');
+      }
+      setFeedback("");
+      setSelectedEntry(null);
+      await loadData();
+    } catch (err: any) { setError(err.message); }
+    finally { setActionLoading(null); }
   };
 
   const handleLogout = async () => { await signOut(); navigate("/"); };
@@ -320,27 +326,39 @@ export default function SupervisorDashboard() {
                           <Button onClick={() => handleApprove(entry.id)} className="bg-green-600 hover:bg-green-700 gap-2" disabled={actionLoading === entry.id}>
                             {actionLoading === entry.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />} Approve
                           </Button>
-                          <Button onClick={() => handleReject(entry.id)} variant="outline" className="border-red-300 text-red-600 hover:bg-red-50" disabled={actionLoading === entry.id}>
+                          <Button onClick={() => handleRequestRevisionClick(entry)} variant="outline" className="border-red-300 text-red-600 hover:bg-red-50" disabled={actionLoading === entry.id}>
                             Request Revision
                           </Button>
+                          <Button variant="outline" className="gap-2" onClick={() => handleFeedbackClick(entry)} disabled={actionLoading === entry.id}>
+                            <MessageSquare className="w-4 h-4" /> Feedback
+                          </Button>
                           <Dialog open={selectedEntry?.id === entry.id} onOpenChange={(open) => !open && setSelectedEntry(null)}>
-                            <DialogTrigger asChild>
-                              <Button variant="outline" className="gap-2" onClick={() => setSelectedEntry(entry)}>
-                                <MessageSquare className="w-4 h-4" /> Feedback
-                              </Button>
-                            </DialogTrigger>
                             <DialogContent>
                               <DialogHeader>
-                                <DialogTitle>Add Supervisor Feedback</DialogTitle>
-                                <DialogDescription>Provide feedback to {entry.student_name}</DialogDescription>
+                                <DialogTitle>{isRejectMode ? "Request Revision & Reject" : "Add Supervisor Feedback"}</DialogTitle>
+                                <DialogDescription>
+                                  {isRejectMode 
+                                    ? `Please explain what needs to be corrected in "${entry.title}". This will reject the entry and notify the student.` 
+                                    : `Provide feedback comments to ${entry.student_name} for "${entry.title}".`}
+                                </DialogDescription>
                               </DialogHeader>
                               <form onSubmit={handleSubmitFeedback} className="space-y-4 mt-4">
                                 <div className="space-y-2">
-                                  <Label htmlFor="feedback">Feedback Comments</Label>
-                                  <Textarea id="feedback" placeholder="Enter your comments..." rows={6} value={feedback} onChange={(e) => setFeedback(e.target.value)} required />
+                                  <Label htmlFor="feedback">Comments / Directions</Label>
+                                  <Textarea 
+                                    id="feedback" 
+                                    placeholder={isRejectMode ? "Explain what needs to be changed (required)..." : "Enter your comments..."} 
+                                    rows={5} 
+                                    value={feedback} 
+                                    onChange={(e) => setFeedback(e.target.value)} 
+                                    required 
+                                  />
                                 </div>
                                 <div className="flex gap-2">
-                                  <Button type="submit" className="flex-1 bg-green-600 hover:bg-green-700">Submit</Button>
+                                  <Button type="submit" className={`flex-1 ${isRejectMode ? 'bg-red-600 hover:bg-red-700' : 'bg-green-600 hover:bg-green-700'}`} disabled={actionLoading !== null}>
+                                    {actionLoading !== null ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+                                    {isRejectMode ? "Reject & Send Comments" : "Submit Feedback"}
+                                  </Button>
                                   <Button type="button" variant="outline" onClick={() => setSelectedEntry(null)}>Cancel</Button>
                                 </div>
                               </form>

@@ -161,3 +161,62 @@ export async function getSupervisorPendingEntries(supervisorId: string) {
         }).sort((a: any, b: any) => new Date(b.entry_date).getTime() - new Date(a.entry_date).getTime());
     }
 }
+
+// Supervisor: get all students assigned to this supervisor
+export async function getSupervisorStudents(supervisorId: string) {
+    try {
+        const { data, error } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('supervisor_id', supervisorId)
+            .order('full_name');
+        if (error) throw error;
+        return data || [];
+    } catch (err) {
+        console.warn('Fallback to mock DB for getSupervisorStudents');
+        const db = getMockDb();
+        return db.profiles.filter((p: any) => p.supervisor_id === supervisorId);
+    }
+}
+
+// Supervisor: get all reviewed entries (Approved / Rejected) for their assigned students
+export async function getSupervisorReviewedEntries(supervisorId: string) {
+    try {
+        const students = await getSupervisorStudents(supervisorId);
+        const studentIds = students.map((s: any) => s.id);
+        if (studentIds.length === 0) return [];
+
+        const { data, error } = await supabase
+            .from('logbook_entries')
+            .select('*')
+            .in('student_id', studentIds)
+            .in('status', ['Approved', 'Rejected'])
+            .order('updated_at', { ascending: false });
+
+        if (error) throw error;
+
+        return (data || []).map((entry: any) => {
+            const student = students.find((s: any) => s.id === entry.student_id);
+            return {
+                ...entry,
+                student_name: student?.full_name || 'Unknown',
+            };
+        });
+    } catch (err) {
+        console.warn('Fallback to mock DB for getSupervisorReviewedEntries');
+        const db = getMockDb();
+        const students = db.profiles.filter((p: any) => p.supervisor_id === supervisorId);
+        const studentIds = students.map((s: any) => s.id);
+        const reviewed = db.logbook_entries.filter(
+            (e: any) => studentIds.includes(e.student_id) && ['Approved', 'Rejected'].includes(e.status)
+        );
+        return reviewed.map((entry: any) => {
+            const student = students.find((s: any) => s.id === entry.student_id);
+            return {
+                ...entry,
+                student_name: student?.full_name || 'Unknown',
+            };
+        }).sort((a: any, b: any) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime());
+    }
+}
+
