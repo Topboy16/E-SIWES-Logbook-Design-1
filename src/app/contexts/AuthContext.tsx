@@ -122,13 +122,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 }
 
                 if (event === 'SIGNED_IN') {
+                    // Skip if signIn() is handling the profile fetch directly
+                    if (isSigningIn.current) {
+                        console.log('Skipping SIGNED_IN — signIn() is handling profile fetch');
+                        return;
+                    }
                     // Skip redundant SIGNED_IN from page load (init already handled it)
-                    // But process it if the user actually clicked "Sign In"
-                    if (initialAuthDone && !isSigningIn.current) {
-                        console.log('Skipping redundant SIGNED_IN — init already done, not a user action');
+                    if (initialAuthDone) {
+                        console.log('Skipping redundant SIGNED_IN — init already done');
                         return;
                     }
 
+                    // Only reaches here for edge cases (e.g. OAuth redirects before init completes)
                     setUser(session?.user ?? null);
                     if (session?.user) {
                         setLoading(true);
@@ -140,7 +145,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                             setProfile(profileData);
                             setUser(session.user);
                             setLoading(false);
-                            isSigningIn.current = false;
                         }
                     }
                     return;

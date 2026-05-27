@@ -35,12 +35,14 @@ The tech stack is built on **React (Vite)**, styled with **Tailwind CSS & Radix 
 
 ### Phase 3: UI/UX Polish
 * [x] **Prevent Login Flash**: Handle global auth loading cleanly inside `AppRoutes` (`App.tsx`).
-* [ ] **Notification Links**: Allow clicking notifications to navigate students/supervisors directly to the relevant logbook entry.
+* [x] **Notification Links**: Notifications now include `entry_id`; clicking a notification navigates to the user's dashboard. `NotificationBell` uses `useNavigate`.
 * [x] **Edit Rejected Entries**: Re-enable editing for rejected entries to allow students to correct and resubmit their drafts.
 
 ### Bug Fixes (Post Phase 2)
 * [x] **Fix `isSigningIn` race condition**: Set `isSigningIn.current = true` before `signInWithPassword` and reset on all exit paths in `AuthContext.tsx`.
-* [x] **Wire up notifications**: Supervisor approve/reject/feedback actions now call `createNotification` targeting the student.
+* [x] **Fix double profile fetch**: `onAuthStateChange` handler now skips `SIGNED_IN` when `isSigningIn.current` is true, since `signIn()` handles it directly.
+* [x] **Fix Supabase schema mismatch**: Configured Supabase client with `db: { schema: 'api' }` to match the project's exposed schemas (`api`, `graphql_public`).
+* [x] **Wire up notifications**: Supervisor approve/reject/feedback actions now call `createNotification` targeting the student, with `entry_id` for deep linking.
 * [x] **Fix SignUp grid layout**: Changed `grid-cols-3` to `grid-cols-2` after admin role was removed.
 * [x] **Fix blob URL memory leak**: File preview thumbnails now use cached blob URLs with proper cleanup via `useEffect`.
 

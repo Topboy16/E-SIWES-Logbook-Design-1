@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Bell, CheckCircle, XCircle, MessageSquare, UserPlus, Info, Check } from 'lucide-react';
 import { Button } from './ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
@@ -23,7 +24,8 @@ const typeColors: Record<string, string> = {
 };
 
 export default function NotificationBell() {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
+  const navigate = useNavigate();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [open, setOpen] = useState(false);
@@ -45,9 +47,14 @@ export default function NotificationBell() {
     } catch { /* silent fail */ }
   }
 
-  async function handleMarkRead(id: string) {
-    await markAsRead(id);
+  async function handleNotificationClick(notif: Notification) {
+    await markAsRead(notif.id);
     await loadNotifications();
+    if (notif.entry_id && profile) {
+      setOpen(false);
+      // Navigate to the user's dashboard — the entry will be visible in their entries list
+      navigate(`/${profile.role}`);
+    }
   }
 
   async function handleMarkAllRead() {
@@ -102,7 +109,7 @@ export default function NotificationBell() {
                   <div
                     key={notif.id}
                     className={`px-4 py-3 hover:bg-gray-50 cursor-pointer transition-colors ${!notif.read ? 'bg-blue-50/50' : ''}`}
-                    onClick={() => handleMarkRead(notif.id)}
+                    onClick={() => handleNotificationClick(notif)}
                   >
                     <div className="flex items-start gap-3">
                       <Icon className={`w-4 h-4 mt-0.5 ${color}`} />

@@ -81,7 +81,7 @@ export default function SupervisorDashboard() {
       await updateEntryStatus(entryId, 'Approved');
       const entry = pendingEntries.find(e => e.id === entryId);
       if (entry) {
-        await createNotification(entry.student_id, 'Entry Approved', `Your entry "${entry.title}" has been approved.`, 'approval');
+        await createNotification(entry.student_id, 'Entry Approved', `Your entry "${entry.title}" has been approved.`, 'approval', entryId);
       }
       await loadData();
     } catch (err: any) { setError(err.message); }
@@ -108,7 +108,7 @@ export default function SupervisorDashboard() {
         await updateEntryStatus(id, 'Approved');
         const entry = pendingEntries.find(e => e.id === id);
         if (entry) {
-          await createNotification(entry.student_id, 'Entry Approved', `Your entry "${entry.title}" has been approved.`, 'approval');
+          await createNotification(entry.student_id, 'Entry Approved', `Your entry "${entry.title}" has been approved.`, 'approval', id);
         }
       }));
       setSelectedIds(new Set());
@@ -139,9 +139,9 @@ export default function SupervisorDashboard() {
       await addFeedback(selectedEntry.id, user.id, feedback.trim());
       if (isRejectMode) {
         await updateEntryStatus(selectedEntry.id, 'Rejected');
-        await createNotification(selectedEntry.student_id, 'Entry Rejected', `Your entry "${selectedEntry.title}" needs revision. Check supervisor feedback for details.`, 'rejection');
+        await createNotification(selectedEntry.student_id, 'Entry Rejected', `Your entry "${selectedEntry.title}" needs revision. Check supervisor feedback for details.`, 'rejection', selectedEntry.id);
       } else {
-        await createNotification(selectedEntry.student_id, 'New Feedback', `You received feedback on "${selectedEntry.title}".`, 'feedback');
+        await createNotification(selectedEntry.student_id, 'New Feedback', `You received feedback on "${selectedEntry.title}".`, 'feedback', selectedEntry.id);
       }
       setFeedback("");
       setSelectedEntry(null);
