@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { seedAdminIfNeeded } from './services/mockDb';
 import LoginPage from './components/LoginPage';
 import SignUpPage from './components/SignUpPage';
 import ForgotPasswordPage from './components/ForgotPasswordPage';
@@ -8,6 +9,12 @@ import ProfilePage from './components/ProfilePage';
 import AdminDashboard from './components/AdminDashboard';
 import StudentDashboard from './components/StudentDashboard';
 import SupervisorDashboard from './components/SupervisorDashboard';
+
+// Seed admin profile on first load if none exists
+const adminEmail = import.meta.env.VITE_ADMIN_EMAIL;
+if (adminEmail) {
+  seedAdminIfNeeded(adminEmail);
+}
 
 // Protected Route component — redirects to login if not authenticated
 function ProtectedRoute({ children, allowedRole }: { children: React.ReactNode; allowedRole: string }) {
