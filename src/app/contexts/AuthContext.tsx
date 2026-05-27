@@ -169,12 +169,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }, []);
 
     async function signIn(email: string, password: string) {
+        isSigningIn.current = true;
         const { data, error } = await supabase.auth.signInWithPassword({
             email,
             password,
         });
 
-        if (error) return { error };
+        if (error) {
+            isSigningIn.current = false;
+            return { error };
+        }
 
         if (data.user) {
             setUser(data.user);
@@ -201,10 +205,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             if (profileData) {
                 setProfile(profileData);
             } else {
+                isSigningIn.current = false;
                 return { error: { message: 'Profile not found. Please sign up first or contact your administrator.' } };
             }
         }
 
+        isSigningIn.current = false;
         return { error: null };
     }
 

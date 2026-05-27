@@ -109,7 +109,7 @@ export default function SignUpPage() {
                             {/* Role Selection */}
                             <div className="space-y-2">
                                 <Label>Select Role</Label>
-                                <div className="grid grid-cols-3 gap-2">
+                                <div className="grid grid-cols-2 gap-2">
                                     {roles.map((role) => (
                                         <button
                                             key={role.id}

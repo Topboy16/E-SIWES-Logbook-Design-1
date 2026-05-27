@@ -17,13 +17,14 @@ import { Input } from "./ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 import { Checkbox } from "./ui/checkbox";
 import { useAuth } from "../contexts/AuthContext";
-import { 
-  getSupervisorPendingEntries, 
-  updateEntryStatus, 
+import {
+  getSupervisorPendingEntries,
+  updateEntryStatus,
   addFeedback,
   getSupervisorStudents,
   getSupervisorReviewedEntries
 } from "../services/feedbackService";
+import { createNotification } from "../services/notificationService";
 import NotificationBell from "./NotificationBell";
 import { isImageFile, formatFileSize } from "../services/fileUploadService";
 
@@ -76,7 +77,14 @@ export default function SupervisorDashboard() {
 
   const handleApprove = async (entryId: string) => {
     setActionLoading(entryId);
-    try { await updateEntryStatus(entryId, 'Approved'); await loadData(); } catch (err: any) { setError(err.message); }
+    try {
+      await updateEntryStatus(entryId, 'Approved');
+      const entry = pendingEntries.find(e => e.id === entryId);
+      if (entry) {
+        await createNotification(entry.student_id, 'Entry Approved', `Your entry "${entry.title}" has been approved.`, 'approval');
+      }
+      await loadData();
+    } catch (err: any) { setError(err.message); }
     finally { setActionLoading(null); }
   };
 
@@ -96,7 +104,13 @@ export default function SupervisorDashboard() {
     if (selectedIds.size === 0) return;
     setBatchLoading(true);
     try {
-      await Promise.all(Array.from(selectedIds).map(id => updateEntryStatus(id, 'Approved')));
+      await Promise.all(Array.from(selectedIds).map(async (id) => {
+        await updateEntryStatus(id, 'Approved');
+        const entry = pendingEntries.find(e => e.id === id);
+        if (entry) {
+          await createNotification(entry.student_id, 'Entry Approved', `Your entry "${entry.title}" has been approved.`, 'approval');
+        }
+      }));
       setSelectedIds(new Set());
       await loadData();
     } catch (err: any) { setError(err.message); }
@@ -125,6 +139,9 @@ export default function SupervisorDashboard() {
       await addFeedback(selectedEntry.id, user.id, feedback.trim());
       if (isRejectMode) {
         await updateEntryStatus(selectedEntry.id, 'Rejected');
+        await createNotification(selectedEntry.student_id, 'Entry Rejected', `Your entry "${selectedEntry.title}" needs revision. Check supervisor feedback for details.`, 'rejection');
+      } else {
+        await createNotification(selectedEntry.student_id, 'New Feedback', `You received feedback on "${selectedEntry.title}".`, 'feedback');
       }
       setFeedback("");
       setSelectedEntry(null);

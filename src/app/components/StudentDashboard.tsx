@@ -59,6 +59,14 @@ export default function StudentDashboard() {
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Blob URL previews for selected files (avoids memory leak from inline createObjectURL)
+  const [filePreviews, setFilePreviews] = useState<string[]>([]);
+  useEffect(() => {
+    const urls = selectedFiles.map(f => f.type.startsWith('image/') ? URL.createObjectURL(f) : '');
+    setFilePreviews(urls);
+    return () => { urls.forEach(u => { if (u) URL.revokeObjectURL(u); }); };
+  }, [selectedFiles]);
+
   // Search, filter, pagination state
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -191,13 +199,18 @@ export default function StudentDashboard() {
           newAttachments = await uploadFiles(user.id, editingEntry.id, selectedFiles);
         }
         const allAttachments = [...existingAttachments, ...newAttachments];
-        await updateEntry(editingEntry.id, {
+        const updates: any = {
           title: newEntry.title,
           description: newEntry.description,
           entry_date: newEntry.date,
           hours_worked: hoursWorked,
           attachments: allAttachments,
-        });
+        };
+        // Reset rejected entries back to Pending on resubmission
+        if (editingEntry.status === 'Rejected') {
+          updates.status = 'Pending';
+        }
+        await updateEntry(editingEntry.id, updates);
       } else {
         // For new entries, create first in the database to get a real database UUID (prevents orphaned files)
         const created = await createEntry(user.id, {
@@ -393,8 +406,8 @@ export default function StudentDashboard() {
                           <div className="flex flex-wrap gap-2">
                             {selectedFiles.map((file, idx) => (
                               <div key={idx} className="group relative flex items-center gap-2 bg-blue-50 border border-blue-200 rounded-lg px-3 py-2 text-xs">
-                                {file.type.startsWith('image/') ? (
-                                  <img src={URL.createObjectURL(file)} alt={file.name} className="w-8 h-8 object-cover rounded" />
+                                {filePreviews[idx] ? (
+                                  <img src={filePreviews[idx]} alt={file.name} className="w-8 h-8 object-cover rounded" />
                                 ) : (
                                   <FileText className="w-4 h-4 text-blue-500" />
                                 )}
@@ -580,10 +593,12 @@ export default function StudentDashboard() {
                                 </div>
                               )}
                             </div>
-                            {entry.status === "Pending" && (
+                            {(entry.status === "Pending" || entry.status === "Rejected") && (
                               <div className="flex items-center gap-2 ml-4">
                                 <Button variant="outline" size="sm" onClick={() => handleEditEntry(entry)}><Edit className="w-4 h-4" /></Button>
-                                <Button variant="outline" size="sm" className="text-red-600 hover:bg-red-50" onClick={() => handleDeleteEntry(entry.id)}><Trash2 className="w-4 h-4" /></Button>
+                                {entry.status === "Pending" && (
+                                  <Button variant="outline" size="sm" className="text-red-600 hover:bg-red-50" onClick={() => handleDeleteEntry(entry.id)}><Trash2 className="w-4 h-4" /></Button>
+                                )}
                               </div>
                             )}
                           </div>

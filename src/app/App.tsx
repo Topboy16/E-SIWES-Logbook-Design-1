@@ -37,11 +37,15 @@ function AppRoutes() {
 
   return (
     <Routes>
-      {/* Public routes — always accessible, never blocked by loading */}
+      {/* Public routes — show spinner while auth is initializing to prevent login flash */}
       <Route
         path="/"
         element={
-          user && profile ? (
+          loading ? (
+            <div className="min-h-screen flex items-center justify-center">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+            </div>
+          ) : user && profile ? (
             <Navigate to={`/${profile.role}`} />
           ) : (
             <LoginPage />

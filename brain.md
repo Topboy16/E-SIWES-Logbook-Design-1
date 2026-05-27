@@ -34,9 +34,15 @@ The tech stack is built on **React (Vite)**, styled with **Tailwind CSS & Radix 
 * [x] **Timezone Adjustment**: Display local calendar dates correctly regardless of UTC shift.
 
 ### Phase 3: UI/UX Polish
-* [ ] **Prevent Login Flash**: Handle global auth loading cleanly inside `AppRoutes` (`App.tsx`).
+* [x] **Prevent Login Flash**: Handle global auth loading cleanly inside `AppRoutes` (`App.tsx`).
 * [ ] **Notification Links**: Allow clicking notifications to navigate students/supervisors directly to the relevant logbook entry.
-* [ ] **Edit Rejected Entries**: Re-enable editing for rejected entries to allow students to correct and resubmit their drafts.
+* [x] **Edit Rejected Entries**: Re-enable editing for rejected entries to allow students to correct and resubmit their drafts.
+
+### Bug Fixes (Post Phase 2)
+* [x] **Fix `isSigningIn` race condition**: Set `isSigningIn.current = true` before `signInWithPassword` and reset on all exit paths in `AuthContext.tsx`.
+* [x] **Wire up notifications**: Supervisor approve/reject/feedback actions now call `createNotification` targeting the student.
+* [x] **Fix SignUp grid layout**: Changed `grid-cols-3` to `grid-cols-2` after admin role was removed.
+* [x] **Fix blob URL memory leak**: File preview thumbnails now use cached blob URLs with proper cleanup via `useEffect`.
 
 ---
 
