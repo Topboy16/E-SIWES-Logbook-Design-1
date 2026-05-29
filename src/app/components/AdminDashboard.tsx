@@ -23,7 +23,7 @@ const ITEMS_PER_PAGE = 10;
 
 export default function AdminDashboard() {
   const navigate = useNavigate();
-  const { signOut } = useAuth();
+  const { signOut, profile } = useAuth();
 
   const [activeTab, setActiveTab] = useState('overview');
   const [students, setStudents] = useState<any[]>([]);
@@ -147,8 +147,13 @@ export default function AdminDashboard() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center">
-                <BookOpen className="w-6 h-6 text-white" />
+              {/* Admin Passport Photo or fallback icon */}
+              <div className="w-10 h-10 rounded-full overflow-hidden flex items-center justify-center flex-shrink-0 bg-blue-600">
+                {profile?.passport_photo_url ? (
+                  <img src={profile.passport_photo_url} alt={profile.full_name} className="w-full h-full object-cover" />
+                ) : (
+                  <BookOpen className="w-6 h-6 text-white" />
+                )}
               </div>
               <div>
                 <h1 className="text-xl text-gray-900">e-SIWES Admin</h1>

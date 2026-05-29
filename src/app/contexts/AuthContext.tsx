@@ -13,6 +13,7 @@ interface UserProfile {
     matric_number?: string;
     organization?: string;
     staff_id?: string;
+    passport_photo_url?: string;
 }
 
 interface AuthContextType {
@@ -20,7 +21,7 @@ interface AuthContextType {
     profile: UserProfile | null;
     loading: boolean;
     signIn: (email: string, password: string) => Promise<{ error: any }>;
-    signUp: (email: string, password: string, role: string, fullName: string, department?: string, matricNumber?: string, organization?: string, staffId?: string) => Promise<{ error: any }>;
+    signUp: (email: string, password: string, role: string, fullName: string, department?: string, matricNumber?: string, organization?: string, staffId?: string, passportPhotoUrl?: string) => Promise<{ error: any }>;
     signOut: () => Promise<void>;
     updateProfile: (updates: Partial<UserProfile>) => Promise<{ error: any }>;
 }
@@ -187,7 +188,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return { error: null };
     }
 
-    async function signUp(email: string, password: string, role: string, fullName: string, department: string = '', matricNumber: string = '', organization: string = '', staffId: string = '') {
+    async function signUp(email: string, password: string, role: string, fullName: string, department: string = '', matricNumber: string = '', organization: string = '', staffId: string = '', passportPhotoUrl: string = '') {
         const { data, error } = await supabase.auth.signUp({
             email,
             password,
@@ -206,7 +207,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                     department,
                     matric_number: matricNumber,
                     organization,
-                    staff_id: staffId
+                    staff_id: staffId,
+                    passport_photo_url: passportPhotoUrl,
                 });
 
             // If Supabase insert fails (e.g. no table), save to mockDb
@@ -221,7 +223,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                     department,
                     matric_number: matricNumber,
                     organization,
-                    staff_id: staffId
+                    staff_id: staffId,
+                    passport_photo_url: passportPhotoUrl,
                 });
                 saveMockDb(db);
             }

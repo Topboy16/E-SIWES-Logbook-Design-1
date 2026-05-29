@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { BookOpen, LogOut, Save, Loader2, AlertCircle, CheckCircle, ArrowLeft } from 'lucide-react';
+import { BookOpen, LogOut, Save, Loader2, AlertCircle, CheckCircle, ArrowLeft, Camera, User } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -19,6 +19,33 @@ export default function ProfilePage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [passportPreview, setPassportPreview] = useState<string>(profile?.passport_photo_url || '');
+  const [newPassportDataUrl, setNewPassportDataUrl] = useState<string>('');
+  const photoInputRef = useRef<HTMLInputElement>(null);
+
+  function fileToDataUrl(file: File): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  }
+
+  const handlePhotoSelected = async (file: File) => {
+    if (!file.type.startsWith('image/')) {
+      setError('Please select an image file (JPEG, PNG, etc.)');
+      return;
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      setError('Passport photo must be under 2MB.');
+      return;
+    }
+    const url = URL.createObjectURL(file);
+    setPassportPreview(url);
+    const dataUrl = await fileToDataUrl(file);
+    setNewPassportDataUrl(dataUrl);
+  };
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -39,6 +66,10 @@ export default function ProfilePage() {
       if (profile?.role === 'supervisor' || profile?.role === 'admin') {
         updates.organization = organization;
         updates.staff_id = staffId;
+      }
+      // Include passport photo if changed
+      if (newPassportDataUrl) {
+        updates.passport_photo_url = newPassportDataUrl;
       }
 
       const { error: updateError } = await updateProfile(updates as any);
@@ -118,6 +149,34 @@ export default function ProfilePage() {
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSave} className="space-y-4">
+              {/* Passport Photo */}
+              <div className="flex flex-col items-center gap-3 pb-4 border-b border-gray-100">
+                <div
+                  onClick={() => photoInputRef.current?.click()}
+                  className="relative w-24 h-24 rounded-full overflow-hidden border-2 border-gray-200 hover:border-blue-400 cursor-pointer transition-all group bg-gray-100 flex items-center justify-center"
+                >
+                  {passportPreview ? (
+                    <img src={passportPreview} alt="Passport" className="w-full h-full object-cover" />
+                  ) : (
+                    <User className="w-10 h-10 text-gray-400" />
+                  )}
+                  <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                    <Camera className="w-6 h-6 text-white" />
+                  </div>
+                </div>
+                <input
+                  ref={photoInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) handlePhotoSelected(file);
+                  }}
+                />
+                <p className="text-xs text-gray-400">Click to change passport photo</p>
+              </div>
+
               <div className="space-y-2">
                 <Label htmlFor="email">Email (cannot be changed)</Label>
                 <Input id="email" value={profile?.email || ''} disabled className="bg-gray-100" />

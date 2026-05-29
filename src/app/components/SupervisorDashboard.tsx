@@ -218,10 +218,20 @@ export default function SupervisorDashboard() {
         <Card className="mb-8 border-green-100 bg-gradient-to-r from-green-50 to-white">
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
-              <div>
-                <h2 className="text-2xl mb-1">{profile?.full_name || "Supervisor"}</h2>
-                <p className="text-sm text-gray-600">Email: {profile?.email}</p>
-                <p className="text-sm text-gray-600">Department: {profile?.department || "Not set"}</p>
+              <div className="flex items-center gap-4">
+                {/* Passport Photo */}
+                <div className="w-16 h-16 rounded-full overflow-hidden border-2 border-green-200 flex-shrink-0 bg-green-100 flex items-center justify-center">
+                  {profile?.passport_photo_url ? (
+                    <img src={profile.passport_photo_url} alt={profile.full_name} className="w-full h-full object-cover" />
+                  ) : (
+                    <User className="w-8 h-8 text-green-400" />
+                  )}
+                </div>
+                <div>
+                  <h2 className="text-2xl mb-1">{profile?.full_name || "Supervisor"}</h2>
+                  <p className="text-sm text-gray-600">Email: {profile?.email}</p>
+                  <p className="text-sm text-gray-600">Department: {profile?.department || "Not set"}</p>
+                </div>
               </div>
               <Badge className="bg-green-500">Active Supervisor</Badge>
             </div>

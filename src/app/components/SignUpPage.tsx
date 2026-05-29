@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { BookOpen, AlertCircle, Loader2, Users } from 'lucide-react';
+import { BookOpen, AlertCircle, Loader2, Users, Shield, Camera } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -17,16 +17,44 @@ export default function SignUpPage() {
     const [matricNumber, setMatricNumber] = useState('');
     const [organization, setOrganization] = useState('');
     const [staffId, setStaffId] = useState('');
+    const [passportPhoto, setPassportPhoto] = useState<File | null>(null);
+    const [passportPreview, setPassportPreview] = useState<string>('');
     const [error, setError] = useState('');
     const [success, setSuccess] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
     const { signUp } = useAuth();
     const navigate = useNavigate();
+    const photoInputRef = useRef<HTMLInputElement>(null);
 
     const roles = [
         { id: 'student', name: 'Student', icon: BookOpen, color: 'bg-blue-500' },
         { id: 'supervisor', name: 'Supervisor', icon: Users, color: 'bg-green-500' },
+        { id: 'admin', name: 'Admin', icon: Shield, color: 'bg-purple-500' },
     ];
+
+    // Convert file to base64 data URL for storage
+    function fileToDataUrl(file: File): Promise<string> {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result as string);
+            reader.onerror = reject;
+            reader.readAsDataURL(file);
+        });
+    }
+
+    const handlePhotoSelected = (file: File) => {
+        if (!file.type.startsWith('image/')) {
+            setError('Please select an image file (JPEG, PNG, etc.)');
+            return;
+        }
+        if (file.size > 2 * 1024 * 1024) {
+            setError('Passport photo must be under 2MB.');
+            return;
+        }
+        setPassportPhoto(file);
+        const url = URL.createObjectURL(file);
+        setPassportPreview(url);
+    };
 
     const handleSignUp = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -45,7 +73,13 @@ export default function SignUpPage() {
         setIsLoading(true);
 
         try {
-            const { error } = await signUp(email, password, selectedRole, fullName, department, matricNumber, organization, staffId);
+            // Convert passport photo to base64 if selected
+            let passportPhotoUrl = '';
+            if (passportPhoto) {
+                passportPhotoUrl = await fileToDataUrl(passportPhoto);
+            }
+
+            const { error } = await signUp(email, password, selectedRole, fullName, department, matricNumber, organization, staffId, passportPhotoUrl);
 
             if (error) {
                 setError(error.message);
@@ -109,7 +143,7 @@ export default function SignUpPage() {
                             {/* Role Selection */}
                             <div className="space-y-2">
                                 <Label>Select Role</Label>
-                                <div className="grid grid-cols-2 gap-2">
+                                <div className="grid grid-cols-3 gap-2">
                                     {roles.map((role) => (
                                         <button
                                             key={role.id}
@@ -125,6 +159,42 @@ export default function SignUpPage() {
                                             <span className="text-xs font-medium">{role.name}</span>
                                         </button>
                                     ))}
+                                </div>
+                            </div>
+
+                            {/* Passport Photograph Upload */}
+                            <div className="space-y-2">
+                                <Label>Passport Photograph</Label>
+                                <div className="flex flex-col items-center gap-3">
+                                    <div
+                                        onClick={() => photoInputRef.current?.click()}
+                                        className="relative w-28 h-28 rounded-full border-3 border-dashed border-gray-300 hover:border-blue-400 cursor-pointer transition-all group overflow-hidden bg-gray-50 flex items-center justify-center"
+                                    >
+                                        {passportPreview ? (
+                                            <img src={passportPreview} alt="Passport preview" className="w-full h-full object-cover" />
+                                        ) : (
+                                            <div className="flex flex-col items-center gap-1 text-gray-400 group-hover:text-blue-500 transition-colors">
+                                                <Camera className="w-8 h-8" />
+                                                <span className="text-[10px] font-medium">Upload Photo</span>
+                                            </div>
+                                        )}
+                                        {passportPreview && (
+                                            <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                                                <Camera className="w-6 h-6 text-white" />
+                                            </div>
+                                        )}
+                                    </div>
+                                    <input
+                                        ref={photoInputRef}
+                                        type="file"
+                                        accept="image/*"
+                                        className="hidden"
+                                        onChange={(e) => {
+                                            const file = e.target.files?.[0];
+                                            if (file) handlePhotoSelected(file);
+                                        }}
+                                    />
+                                    <p className="text-xs text-gray-400">JPEG or PNG, max 2MB</p>
                                 </div>
                             </div>
 
@@ -156,7 +226,7 @@ export default function SignUpPage() {
                                 </>
                             )}
 
-                            {selectedRole === 'supervisor' && (
+                            {(selectedRole === 'supervisor' || selectedRole === 'admin') && (
                                 <>
                                     <div className="space-y-2">
                                         <Label htmlFor="organization">Organization / Company Name</Label>

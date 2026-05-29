@@ -44,6 +44,8 @@ The tech stack is built on **React (Vite)**, styled with **Tailwind CSS & Radix 
 * [x] **Wire up notifications**: Supervisor approve/reject/feedback actions now call `createNotification` targeting the student, with `entry_id` for deep linking.
 * [x] **Fix SignUp grid layout**: Changed `grid-cols-3` to `grid-cols-2` after admin role was removed.
 * [x] **Fix blob URL memory leak**: File preview thumbnails now use cached blob URLs with proper cleanup via `useEffect`.
+* [x] **Restore Admin Role on Signup**: Re-added `admin` option to `SignUpPage.tsx` role selector (grid-cols-3) so admins can self-register again.
+* [x] **Passport Photograph Upload**: Added passport photo upload (circular preview, max 2MB image) to `SignUpPage.tsx` for all roles. Photo stored as base64 `passport_photo_url` in profile (Supabase + Mock DB). Displayed on `StudentDashboard`, `SupervisorDashboard`, `AdminDashboard` headers and editable on `ProfilePage`.
 
 ---
 
