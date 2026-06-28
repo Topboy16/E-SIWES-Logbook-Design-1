@@ -14,6 +14,7 @@ interface UserProfile {
     organization?: string;
     staff_id?: string;
     passport_photo_url?: string;
+    email_confirmed_at?: string | null;
 }
 
 interface AuthContextType {
@@ -177,7 +178,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             }
             
             if (profileData) {
-                setProfile(profileData);
+                // Sync email_confirmed_at from auth user to profile so admin can see verification status
+                const confirmedAt = data.user.email_confirmed_at ?? null;
+                if (confirmedAt && !profileData.email_confirmed_at) {
+                    // Write it back to the profiles table (best-effort, non-blocking)
+                    supabase
+                        .from('profiles')
+                        .update({ email_confirmed_at: confirmedAt })
+                        .eq('id', data.user.id)
+                        .then(() => {})
+                        .catch(() => {});
+                    // Update mock DB too
+                    try {
+                        const db = getMockDb();
+                        const idx = db.profiles.findIndex((p: any) => p.id === data.user.id);
+                        if (idx !== -1) {
+                            db.profiles[idx].email_confirmed_at = confirmedAt;
+                            saveMockDb(db);
+                        }
+                    } catch (_) {}
+                }
+                setProfile({ ...profileData, email_confirmed_at: confirmedAt || profileData.email_confirmed_at });
             } else {
                 isSigningIn.current = false;
                 return { error: { message: 'Profile not found. Please sign up first or contact your administrator.' } };
@@ -209,6 +230,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                     organization,
                     staff_id: staffId,
                     passport_photo_url: passportPhotoUrl,
+                    email_confirmed_at: null,
                 });
 
             // If Supabase insert fails (e.g. no table), save to mockDb
@@ -225,6 +247,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                     organization,
                     staff_id: staffId,
                     passport_photo_url: passportPhotoUrl,
+                    email_confirmed_at: null,
                 });
                 saveMockDb(db);
             }

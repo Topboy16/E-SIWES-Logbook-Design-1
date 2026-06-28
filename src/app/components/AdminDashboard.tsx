@@ -1,9 +1,10 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import {
-  BookOpen, Users, CheckCircle, Clock, LogOut, FileText,
-  TrendingUp, Loader2, AlertCircle, XCircle, Search, User,
-  ChevronLeft, ChevronRight, BarChart3, UserPlus,
+  BookOpen, Users, CheckCircle, Clock, LogOut,
+  Loader2, AlertCircle, XCircle, Search, User,
+  ChevronLeft, ChevronRight, UserPlus, Bell,
+  CheckCircle2, RefreshCw, UserX,
 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
@@ -15,9 +16,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from './ui/dialog';
 import { Label } from './ui/label';
 import { useAuth } from '../contexts/AuthContext';
-import { getAllStudents, getAllSupervisors, getAllEntries, getSystemStats, assignSupervisor } from '../services/adminService';
+import { getAllStudents, getAllSupervisors, getAllEntries, getSystemStats, assignSupervisor, getUnassignedStudents } from '../services/adminService';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line, Legend } from 'recharts';
 import NotificationBell from './NotificationBell';
+import ReminderPanel from './ReminderPanel';
 
 const ITEMS_PER_PAGE = 10;
 
@@ -30,6 +32,7 @@ export default function AdminDashboard() {
   const [supervisors, setSupervisors] = useState<any[]>([]);
   const [recentEntries, setRecentEntries] = useState<any[]>([]);
   const [allEntries, setAllEntries] = useState<any[]>([]);
+  const [unassignedStudents, setUnassignedStudents] = useState<any[]>([]);
   const [stats, setStats] = useState({ totalStudents: 0, totalSupervisors: 0, pendingApprovals: 0, completedLogs: 0 });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -54,14 +57,15 @@ export default function AdminDashboard() {
   async function loadData() {
     setLoading(true);
     try {
-      const [studentsData, supervisorsData, entriesData, statsData] = await Promise.all([
-        getAllStudents(), getAllSupervisors(), getAllEntries(), getSystemStats(),
+      const [studentsData, supervisorsData, entriesData, statsData, unassignedData] = await Promise.all([
+        getAllStudents(), getAllSupervisors(), getAllEntries(), getSystemStats(), getUnassignedStudents(),
       ]);
       setStudents(studentsData || []);
       setSupervisors(supervisorsData || []);
       setAllEntries(entriesData || []);
       setRecentEntries((entriesData || []).slice(0, 10));
       setStats(statsData);
+      setUnassignedStudents(unassignedData || []);
     } catch (err: any) { setError(err.message); }
     finally { setLoading(false); }
   }
@@ -162,6 +166,9 @@ export default function AdminDashboard() {
             </div>
             <div className="flex items-center gap-3">
               <NotificationBell />
+              <Button onClick={() => loadData()} variant="outline" size="sm" disabled={loading} className="gap-2">
+                <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} /> Refresh
+              </Button>
               <Link to="/profile"><Button variant="outline" size="sm"><User className="w-4 h-4" /></Button></Link>
               <Button onClick={handleLogout} variant="outline" className="gap-2"><LogOut className="w-4 h-4" /> Logout</Button>
             </div>
@@ -196,11 +203,21 @@ export default function AdminDashboard() {
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="mb-6">
+          <TabsList className="mb-4">
             <TabsTrigger value="overview">Overview</TabsTrigger>
-            <TabsTrigger value="students">Students</TabsTrigger>
+            <TabsTrigger value="students" className="flex items-center gap-1.5">
+              Students
+              {unassignedStudents.length > 0 && (
+                <span className="ml-1 w-4 h-4 rounded-full bg-orange-500 text-white text-[10px] flex items-center justify-center font-bold">
+                  {unassignedStudents.length}
+                </span>
+              )}
+            </TabsTrigger>
             <TabsTrigger value="supervisors">Supervisors</TabsTrigger>
             <TabsTrigger value="analytics">Analytics</TabsTrigger>
+            <TabsTrigger value="reminders" className="flex items-center gap-1.5">
+              <Bell className="w-3.5 h-3.5" />Reminders
+            </TabsTrigger>
           </TabsList>
 
           {/* OVERVIEW TAB */}
@@ -252,10 +269,25 @@ export default function AdminDashboard() {
 
           {/* STUDENTS TAB */}
           <TabsContent value="students">
+            {/* Unassigned students alert banner */}
+            {!loading && unassignedStudents.length > 0 && (
+              <div className="mb-4 flex items-start gap-3 p-4 bg-orange-50 border border-orange-200 rounded-lg">
+                <UserX className="w-5 h-5 text-orange-500 flex-shrink-0 mt-0.5" />
+                <div className="flex-1">
+                  <p className="text-sm font-semibold text-orange-800">
+                    {unassignedStudents.length} student{unassignedStudents.length > 1 ? 's' : ''} awaiting supervisor assignment
+                  </p>
+                  <p className="text-xs text-orange-600 mt-0.5">
+                    {unassignedStudents.map((s: any) => s.full_name).join(', ')}
+                  </p>
+                </div>
+                <button className="text-xs text-orange-600 underline whitespace-nowrap" onClick={() => setStudentSearch('')}>View all</button>
+              </div>
+            )}
             <Card>
               <CardHeader>
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                  <div><CardTitle>Student Management</CardTitle><CardDescription>View all registered students</CardDescription></div>
+                  <div><CardTitle>Student Management</CardTitle><CardDescription>All registered students — assign supervisors and track progress</CardDescription></div>
                   <div className="relative">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                     <Input placeholder="Search students..." className="pl-9 w-56" value={studentSearch} onChange={(e) => { setStudentSearch(e.target.value); setStudentPage(1); }} />
@@ -273,6 +305,8 @@ export default function AdminDashboard() {
                           <TableHead>Name</TableHead>
                           <TableHead>Email</TableHead>
                           <TableHead>Department</TableHead>
+                          <TableHead>Verified</TableHead>
+                          <TableHead>Entries</TableHead>
                           <TableHead>Supervisor</TableHead>
                           <TableHead>Actions</TableHead>
                         </TableRow>
@@ -280,20 +314,41 @@ export default function AdminDashboard() {
                       <TableBody>
                         {paginatedStudents.map((student: any) => {
                           const sup = supervisors.find((s: any) => s.id === student.supervisor_id);
+                          const isVerified = !!student.email_confirmed_at;
                           return (
                             <TableRow key={student.id}>
                               <TableCell className="font-medium">{student.full_name}</TableCell>
                               <TableCell>{student.email}</TableCell>
                               <TableCell>{student.department || '—'}</TableCell>
-                              <TableCell>{sup ? sup.full_name : <span className="text-gray-400">Unassigned</span>}</TableCell>
+                              <TableCell>
+                                {isVerified ? (
+                                  <span className="inline-flex items-center gap-1 text-xs text-green-700 bg-green-50 border border-green-200 rounded-full px-2 py-0.5">
+                                    <CheckCircle2 className="w-3 h-3" /> Verified
+                                  </span>
+                                ) : (
+                                  <span className="inline-flex items-center gap-1 text-xs text-gray-500 bg-gray-50 border border-gray-200 rounded-full px-2 py-0.5">
+                                    <Clock className="w-3 h-3" /> Unverified
+                                  </span>
+                                )}
+                              </TableCell>
+                              <TableCell>
+                                <span className="text-sm font-medium">{student.entry_count ?? 0}</span>
+                                {(student.pending_count ?? 0) > 0 && (
+                                  <span className="ml-1 text-xs text-yellow-600">({student.pending_count} pending)</span>
+                                )}
+                              </TableCell>
+                              <TableCell>{sup ? sup.full_name : <span className="text-orange-500 font-medium text-sm">Unassigned</span>}</TableCell>
                               <TableCell>
                                 <Button variant="outline" size="sm" className="gap-1" onClick={() => { setAssignDialog(student); setSelectedSupervisorId(student.supervisor_id || ''); }}>
-                                  <UserPlus className="w-3 h-3" /> Assign
+                                  <UserPlus className="w-3 h-3" /> {sup ? 'Reassign' : 'Assign'}
                                 </Button>
                               </TableCell>
                             </TableRow>
                           );
                         })}
+                        {paginatedStudents.length === 0 && (
+                          <TableRow><TableCell colSpan={7} className="text-center py-8 text-gray-500">No students found</TableCell></TableRow>
+                        )}
                       </TableBody>
                     </Table>
                     {studentTotalPages > 1 && (
@@ -317,7 +372,7 @@ export default function AdminDashboard() {
             <Card>
               <CardHeader>
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                  <div><CardTitle>Supervisor Management</CardTitle><CardDescription>Active supervisors</CardDescription></div>
+                  <div><CardTitle>Supervisor Management</CardTitle><CardDescription>Active supervisors and their assigned students</CardDescription></div>
                   <div className="relative">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                     <Input placeholder="Search supervisors..." className="pl-9 w-56" value={supervisorSearch} onChange={(e) => { setSupervisorSearch(e.target.value); setSupervisorPage(1); }} />
@@ -334,16 +389,36 @@ export default function AdminDashboard() {
                 ) : (
                   <>
                     <Table>
-                      <TableHeader><TableRow><TableHead>Name</TableHead><TableHead>Email</TableHead><TableHead>Department</TableHead><TableHead>Students</TableHead></TableRow></TableHeader>
+                      <TableHeader><TableRow><TableHead>Name</TableHead><TableHead>Email</TableHead><TableHead>Department / Org</TableHead><TableHead>Assigned Students</TableHead><TableHead>Unassigned Students</TableHead></TableRow></TableHeader>
                       <TableBody>
                         {paginatedSupervisors.map((sup: any) => {
-                          const assignedCount = students.filter((s: any) => s.supervisor_id === sup.id).length;
+                          const assignedStudents = students.filter((s: any) => s.supervisor_id === sup.id);
+                          const unassignedForSup = students.filter((s: any) => !s.supervisor_id);
                           return (
                             <TableRow key={sup.id}>
                               <TableCell className="font-medium">{sup.full_name}</TableCell>
                               <TableCell>{sup.email}</TableCell>
-                              <TableCell>{sup.department || '—'}</TableCell>
-                              <TableCell><Badge variant="secondary">{assignedCount}</Badge></TableCell>
+                              <TableCell>{sup.department || sup.organization || '—'}</TableCell>
+                              <TableCell>
+                                <div className="flex items-center gap-2">
+                                  <Badge variant="secondary" className="bg-blue-50 text-blue-700 border-blue-200">
+                                    {assignedStudents.length} assigned
+                                  </Badge>
+                                  {assignedStudents.length > 0 && (
+                                    <span className="text-xs text-gray-400 truncate max-w-[150px]">
+                                      {assignedStudents.slice(0, 2).map((s: any) => s.full_name).join(', ')}
+                                      {assignedStudents.length > 2 ? ` +${assignedStudents.length - 2}` : ''}
+                                    </span>
+                                  )}
+                                </div>
+                              </TableCell>
+                              <TableCell>
+                                {unassignedForSup.length > 0 ? (
+                                  <span className="text-xs text-orange-600 font-medium">{unassignedForSup.length} need assignment</span>
+                                ) : (
+                                  <span className="text-xs text-green-600">All assigned ✓</span>
+                                )}
+                              </TableCell>
                             </TableRow>
                           );
                         })}
@@ -412,6 +487,11 @@ export default function AdminDashboard() {
                 </CardContent>
               </Card>
             </div>
+          </TabsContent>
+
+          {/* REMINDERS TAB */}
+          <TabsContent value="reminders">
+            <ReminderPanel students={students} supervisors={supervisors} />
           </TabsContent>
         </Tabs>
 

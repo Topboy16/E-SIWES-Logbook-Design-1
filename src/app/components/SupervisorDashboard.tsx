@@ -463,23 +463,94 @@ export default function SupervisorDashboard() {
           {/* MY STUDENTS TAB */}
           <TabsContent value="students">
             <Card>
-              <CardHeader><CardTitle>Assigned Students</CardTitle><CardDescription>Students under your supervision</CardDescription></CardHeader>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle>Assigned Students</CardTitle>
+                    <CardDescription>Students under your supervision — logbook progress overview</CardDescription>
+                  </div>
+                  <Badge className="bg-green-500 text-white">{students.length} student{students.length !== 1 ? 's' : ''}</Badge>
+                </div>
+              </CardHeader>
               <CardContent>
                 {loading ? (
                   <div className="flex justify-center py-12"><Loader2 className="w-8 h-8 animate-spin text-green-600" /></div>
                 ) : students.length === 0 ? (
                   <div className="text-center py-12 text-gray-500">
-                    <Users className="w-12 h-12 mx-auto mb-4 text-gray-300" /><p>No students assigned yet</p>
+                    <Users className="w-12 h-12 mx-auto mb-4 text-gray-300" />
+                    <p className="font-medium">No students assigned yet</p>
+                    <p className="text-sm mt-1 text-gray-400">Contact your administrator to get students assigned to you.</p>
                   </div>
                 ) : (
-                  <div className="space-y-4">
-                    {students.map((student: any) => (
-                      <div key={student.id} className="p-4 border border-gray-200 rounded-lg">
-                        <h3 className="text-lg mb-1">{student.full_name}</h3>
-                        <p className="text-sm text-gray-600">{student.department || "No department"}</p>
-                        <p className="text-sm text-gray-600">{student.email}</p>
-                      </div>
-                    ))}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {students.map((student: any) => {
+                      const totalEntries = student.entry_count ?? 0;
+                      const pendingCount = student.pending_count ?? 0;
+                      const approvedCount = student.approved_count ?? 0;
+                      const progressPct = totalEntries > 0 ? Math.round((approvedCount / totalEntries) * 100) : 0;
+                      return (
+                        <div key={student.id} className="p-5 border border-gray-200 rounded-xl hover:shadow-md transition-shadow bg-white">
+                          {/* Student header */}
+                          <div className="flex items-start gap-3 mb-4">
+                            <div className="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center flex-shrink-0">
+                              {student.passport_photo_url ? (
+                                <img src={student.passport_photo_url} alt={student.full_name} className="w-10 h-10 rounded-full object-cover" />
+                              ) : (
+                                <span className="text-green-700 font-bold text-sm">
+                                  {student.full_name?.charAt(0)?.toUpperCase() || 'S'}
+                                </span>
+                              )}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <h3 className="font-semibold text-gray-900 truncate">{student.full_name}</h3>
+                              <p className="text-xs text-gray-500 truncate">{student.email}</p>
+                              {student.matric_number && (
+                                <p className="text-xs text-gray-400 mt-0.5">Matric: {student.matric_number}</p>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Department */}
+                          {student.department && (
+                            <p className="text-xs text-blue-600 bg-blue-50 rounded px-2 py-1 mb-3 inline-block">{student.department}</p>
+                          )}
+
+                          {/* Entry stats */}
+                          <div className="grid grid-cols-3 gap-2 mb-4">
+                            <div className="text-center p-2 bg-gray-50 rounded-lg">
+                              <p className="text-lg font-bold text-gray-800">{totalEntries}</p>
+                              <p className="text-[10px] text-gray-500 uppercase tracking-wide">Total</p>
+                            </div>
+                            <div className="text-center p-2 bg-yellow-50 rounded-lg">
+                              <p className="text-lg font-bold text-yellow-700">{pendingCount}</p>
+                              <p className="text-[10px] text-yellow-600 uppercase tracking-wide">Pending</p>
+                            </div>
+                            <div className="text-center p-2 bg-green-50 rounded-lg">
+                              <p className="text-lg font-bold text-green-700">{approvedCount}</p>
+                              <p className="text-[10px] text-green-600 uppercase tracking-wide">Approved</p>
+                            </div>
+                          </div>
+
+                          {/* Progress bar */}
+                          {totalEntries > 0 ? (
+                            <div>
+                              <div className="flex justify-between text-xs text-gray-500 mb-1">
+                                <span>Approval rate</span>
+                                <span className="font-medium">{progressPct}%</span>
+                              </div>
+                              <div className="w-full bg-gray-100 rounded-full h-2">
+                                <div
+                                  className="bg-green-500 h-2 rounded-full transition-all"
+                                  style={{ width: `${progressPct}%` }}
+                                />
+                              </div>
+                            </div>
+                          ) : (
+                            <p className="text-xs text-gray-400 italic text-center py-1">No logbook entries yet</p>
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
               </CardContent>

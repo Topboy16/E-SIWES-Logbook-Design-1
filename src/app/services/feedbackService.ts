@@ -162,20 +162,50 @@ export async function getSupervisorPendingEntries(supervisorId: string) {
     }
 }
 
-// Supervisor: get all students assigned to this supervisor
+// Supervisor: get all students assigned to this supervisor — enriched with entry stats
 export async function getSupervisorStudents(supervisorId: string) {
     try {
-        const { data, error } = await supabase
+        const { data: students, error } = await supabase
             .from('profiles')
             .select('*')
             .eq('supervisor_id', supervisorId)
             .order('full_name');
         if (error) throw error;
-        return data || [];
+
+        const studentIds = (students || []).map((s: any) => s.id);
+        let entryCounts: Record<string, { total: number; pending: number; approved: number }> = {};
+        if (studentIds.length > 0) {
+            const { data: entries } = await supabase
+                .from('logbook_entries')
+                .select('student_id, status')
+                .in('student_id', studentIds);
+            (entries || []).forEach((e: any) => {
+                if (!entryCounts[e.student_id]) entryCounts[e.student_id] = { total: 0, pending: 0, approved: 0 };
+                entryCounts[e.student_id].total++;
+                if (e.status === 'Pending') entryCounts[e.student_id].pending++;
+                if (e.status === 'Approved') entryCounts[e.student_id].approved++;
+            });
+        }
+
+        return (students || []).map((s: any) => ({
+            ...s,
+            entry_count: entryCounts[s.id]?.total ?? 0,
+            pending_count: entryCounts[s.id]?.pending ?? 0,
+            approved_count: entryCounts[s.id]?.approved ?? 0,
+        }));
     } catch (err) {
         console.warn('Fallback to mock DB for getSupervisorStudents');
         const db = getMockDb();
-        return db.profiles.filter((p: any) => p.supervisor_id === supervisorId);
+        const students = db.profiles.filter((p: any) => p.supervisor_id === supervisorId);
+        return students.map((s: any) => {
+            const entries = db.logbook_entries.filter((e: any) => e.student_id === s.id);
+            return {
+                ...s,
+                entry_count: entries.length,
+                pending_count: entries.filter((e: any) => e.status === 'Pending').length,
+                approved_count: entries.filter((e: any) => e.status === 'Approved').length,
+            };
+        });
     }
 }
 
