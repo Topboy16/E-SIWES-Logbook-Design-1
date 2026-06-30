@@ -104,6 +104,41 @@ Deno.serve(async (req: Request) => {
     // Admin-client with service role (bypasses RLS for notification inserts)
     const adminClient = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
 
+    // ─── AUTHORIZATION ──────────────────────────────────────────────────────────
+    // This function sends real emails and writes notifications for arbitrary users via
+    // the service-role key. Without this gate it is an open relay: any caller could spam
+    // arbitrary inboxes and inject in-app notifications. Require a valid session whose
+    // profile role is 'admin' before doing anything.
+    const authHeader = req.headers.get('Authorization') ?? '';
+    const jwt = authHeader.replace(/^Bearer\s+/i, '').trim();
+    if (!jwt) {
+      return new Response(JSON.stringify({ error: 'Missing Authorization header' }), {
+        status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    const { data: userData, error: userErr } = await adminClient.auth.getUser(jwt);
+    if (userErr || !userData?.user) {
+      return new Response(JSON.stringify({ error: 'Invalid or expired session' }), {
+        status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    const { data: callerProfile, error: profileErr } = await adminClient
+      .from('profiles')
+      .select('role')
+      .eq('id', userData.user.id)
+      .single();
+    if (profileErr || callerProfile?.role !== 'admin') {
+      return new Response(JSON.stringify({ error: 'Forbidden: admin role required' }), {
+        status: 403,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+    // ────────────────────────────────────────────────────────────────────────────
+
     const { payloads }: { payloads: ReminderPayload[] } = await req.json();
 
     const results: { role: string; emailsSent: number; emailsFailed: number; notifsSent: number }[] = [];

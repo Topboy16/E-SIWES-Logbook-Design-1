@@ -52,14 +52,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             const db = getMockDb();
             const p = db.profiles.find((p: any) => p.id === userId);
             if (p) return p;
-            
-            // Return a default if absolutely nothing exists
-            return {
-                id: userId,
-                email: 'user@example.com',
-                role: 'student',
-                full_name: 'Mock User',
-            };
+
+            // Fail closed: do NOT fabricate a default profile here. Returning a hardcoded
+            // { role: 'student' } on a transient DB error would silently downgrade
+            // supervisors/admins into the student dashboard. Callers must treat null as
+            // "could not resolve profile" and refuse access rather than assume a role.
+            return null;
         }
     }
 
@@ -159,22 +157,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             setUser(data.user);
 
             let profileData = await fetchProfile(data.user.id);
-            if (!profileData || profileData.email === 'user@example.com') {
-                // Mock a profile if none was found or we got the hardcoded default
+            if (!profileData) {
+                // Last resort: a pre-provisioned demo profile in the mock DB, matched by email.
+                // We deliberately do NOT fabricate a brand-new profile with an assumed role —
+                // defaulting to 'student' would let a transient profile-fetch failure silently
+                // strip a supervisor/admin of their real role. If nothing is found, fail closed.
                 const db = getMockDb();
-                let existing = db.profiles.find((p: any) => p.email === email);
-                if (existing) {
-                    profileData = existing;
-                } else {
-                    profileData = {
-                        id: data.user.id,
-                        email: data.user.email || email,
-                        role: 'student', // assume student if missing
-                        full_name: data.user.email?.split('@')[0] || 'User',
-                    };
-                    db.profiles.push(profileData);
-                    saveMockDb(db);
-                }
+                const existing = db.profiles.find((p: any) => p.email === email);
+                if (existing) profileData = existing;
             }
             
             if (profileData) {
@@ -210,6 +200,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     async function signUp(email: string, password: string, role: string, fullName: string, department: string = '', matricNumber: string = '', organization: string = '', staffId: string = '', passportPhotoUrl: string = '') {
+        // Defense in depth: never allow a self-service signup to create a privileged role,
+        // even if the UI is bypassed. Only 'student' and 'supervisor' may self-register;
+        // admins are provisioned server-side. (The DB should also enforce this via an RLS
+        // policy / trigger that rejects role='admin' inserts from anon/authenticated users.)
+        const SELF_SIGNUP_ROLES = ['student', 'supervisor'];
+        if (!SELF_SIGNUP_ROLES.includes(role)) {
+            return { error: { message: 'Invalid role selected.' } };
+        }
+
         const { data, error } = await supabase.auth.signUp({
             email,
             password,
