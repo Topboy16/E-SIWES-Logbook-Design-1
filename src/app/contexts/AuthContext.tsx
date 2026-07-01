@@ -15,6 +15,10 @@ interface UserProfile {
     staff_id?: string;
     passport_photo_url?: string;
     email_confirmed_at?: string | null;
+    // False until the user has filled in role + required details. Legacy users who were
+    // created in auth but never got a profile row are backfilled with this set to false,
+    // which routes them through the Complete Profile page on next login.
+    profile_completed?: boolean;
 }
 
 interface AuthContextType {
@@ -25,6 +29,7 @@ interface AuthContextType {
     signUp: (email: string, password: string, role: string, fullName: string, department?: string, matricNumber?: string, organization?: string, staffId?: string, passportPhotoUrl?: string) => Promise<{ error: any }>;
     signOut: () => Promise<void>;
     updateProfile: (updates: Partial<UserProfile>) => Promise<{ error: any }>;
+    resendConfirmation: (email: string) => Promise<{ error: any }>;
 }
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
@@ -209,62 +214,59 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             return { error: { message: 'Invalid role selected.' } };
         }
 
-        const { data, error } = await supabase.auth.signUp({
+        // Pass the profile details as auth metadata. The server-side handle_new_user()
+        // trigger reads this and creates the profiles row reliably — this works even with
+        // email confirmation enabled (where there is no session at signup time, so a
+        // client-side insert into profiles would be blocked by RLS and silently lost).
+        //
+        // NOTE: passport_photo_url is intentionally NOT sent as metadata — it is a base64
+        // data URL that can be megabytes, and user_metadata is embedded in the JWT. The
+        // photo is set later on the profile page instead.
+        const { error } = await supabase.auth.signUp({
             email,
             password,
+            options: {
+                data: {
+                    role,
+                    full_name: fullName,
+                    department,
+                    matric_number: matricNumber,
+                    organization,
+                    staff_id: staffId,
+                },
+            },
         });
 
         if (error) return { error };
 
-        if (data.user) {
-            const { error: profileError } = await supabase
-                .from('profiles')
-                .insert({
-                    id: data.user.id,
-                    email,
-                    role,
-                    full_name: fullName,
-                    department,
-                    matric_number: matricNumber,
-                    organization,
-                    staff_id: staffId,
-                    passport_photo_url: passportPhotoUrl,
-                    email_confirmed_at: null,
-                });
-
-            // If Supabase insert fails (e.g. no table), save to mockDb
-            if (profileError) {
-                console.warn('Saving profile to mockDb due to Supabase error:', profileError);
-                const db = getMockDb();
-                db.profiles.push({
-                    id: data.user.id,
-                    email,
-                    role,
-                    full_name: fullName,
-                    department,
-                    matric_number: matricNumber,
-                    organization,
-                    staff_id: staffId,
-                    passport_photo_url: passportPhotoUrl,
-                    email_confirmed_at: null,
-                });
-                saveMockDb(db);
-            }
-
-            // Explicitly fetch and set profile to avoid race condition with onAuthStateChange
-            const profileData = await fetchProfile(data.user.id);
-            if (profileData) {
-                setProfile(profileData);
-            }
-        }
-
+        // With email confirmation on there is no session yet, so we do not fetch/set the
+        // profile here — the user confirms their email, then signs in. `passportPhotoUrl`
+        // is accepted for signature compatibility but applied on first profile edit.
+        void passportPhotoUrl;
         return { error: null };
     }
 
     async function signOut() {
-        await supabase.auth.signOut();
-        setUser(null);
-        setProfile(null);
+        // Logout is local-first: always clear in-memory auth state even if the network
+        // call to revoke the session fails (e.g. offline). Otherwise a rejected signOut
+        // would leave the UI logged in and skip the caller's post-logout navigation.
+        try {
+            await supabase.auth.signOut();
+        } catch (err) {
+            console.warn('signOut network error — clearing local session anyway:', err);
+        } finally {
+            setUser(null);
+            setProfile(null);
+        }
+    }
+
+    // Re-send the signup confirmation email for accounts that haven't verified yet.
+    // Supabase silently no-ops (still returns success) if the address is already
+    // confirmed or unknown, so this does not leak whether an account exists.
+    async function resendConfirmation(email: string): Promise<{ error: any }> {
+        if (!email) return { error: { message: 'Enter your email address first.' } };
+        const { error } = await supabase.auth.resend({ type: 'signup', email });
+        return { error };
     }
 
     async function updateProfile(updates: Partial<UserProfile>): Promise<{ error: any }> {
@@ -301,7 +303,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     return (
-        <AuthContext.Provider value={{ user, profile, loading, signIn, signUp, signOut, updateProfile }}>
+        <AuthContext.Provider value={{ user, profile, loading, signIn, signUp, signOut, updateProfile, resendConfirmation }}>
             {children}
         </AuthContext.Provider>
     );
