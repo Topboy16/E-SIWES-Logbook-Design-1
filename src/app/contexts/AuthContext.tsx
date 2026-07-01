@@ -247,9 +247,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     async function signOut() {
-        await supabase.auth.signOut();
-        setUser(null);
-        setProfile(null);
+        // Logout is local-first: always clear in-memory auth state even if the network
+        // call to revoke the session fails (e.g. offline). Otherwise a rejected signOut
+        // would leave the UI logged in and skip the caller's post-logout navigation.
+        try {
+            await supabase.auth.signOut();
+        } catch (err) {
+            console.warn('signOut network error — clearing local session anyway:', err);
+        } finally {
+            setUser(null);
+            setProfile(null);
+        }
     }
 
     // Re-send the signup confirmation email for accounts that haven't verified yet.
