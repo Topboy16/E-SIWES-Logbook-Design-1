@@ -29,6 +29,7 @@ interface AuthContextType {
     signUp: (email: string, password: string, role: string, fullName: string, department?: string, matricNumber?: string, organization?: string, staffId?: string, passportPhotoUrl?: string) => Promise<{ error: any }>;
     signOut: () => Promise<void>;
     updateProfile: (updates: Partial<UserProfile>) => Promise<{ error: any }>;
+    resendConfirmation: (email: string) => Promise<{ error: any }>;
 }
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
@@ -251,6 +252,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setProfile(null);
     }
 
+    // Re-send the signup confirmation email for accounts that haven't verified yet.
+    // Supabase silently no-ops (still returns success) if the address is already
+    // confirmed or unknown, so this does not leak whether an account exists.
+    async function resendConfirmation(email: string): Promise<{ error: any }> {
+        if (!email) return { error: { message: 'Enter your email address first.' } };
+        const { error } = await supabase.auth.resend({ type: 'signup', email });
+        return { error };
+    }
+
     async function updateProfile(updates: Partial<UserProfile>): Promise<{ error: any }> {
         if (!profile?.id) return { error: { message: 'No profile loaded' } };
 
@@ -285,7 +295,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     return (
-        <AuthContext.Provider value={{ user, profile, loading, signIn, signUp, signOut, updateProfile }}>
+        <AuthContext.Provider value={{ user, profile, loading, signIn, signUp, signOut, updateProfile, resendConfirmation }}>
             {children}
         </AuthContext.Provider>
     );

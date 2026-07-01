@@ -1,29 +1,47 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { BookOpen, AlertCircle, Loader2 } from 'lucide-react';
+import { BookOpen, AlertCircle, Loader2, MailCheck } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { useAuth } from '../contexts/AuthContext';
 
+// Detects the "email not confirmed" failure across Supabase versions (code or message).
+function isEmailNotConfirmed(error: any): boolean {
+  const code = (error?.code || '').toLowerCase();
+  const msg = (error?.message || '').toLowerCase();
+  return code === 'email_not_confirmed' || msg.includes('not confirmed') || msg.includes('confirm your email');
+}
+
 export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const { signIn, user, profile } = useAuth();
+  const [needsConfirmation, setNeedsConfirmation] = useState(false);
+  const [resendState, setResendState] = useState<'idle' | 'sending' | 'sent'>('idle');
+  const [resendMessage, setResendMessage] = useState('');
+  const { signIn, resendConfirmation, user, profile } = useAuth();
   const navigate = useNavigate();
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    setNeedsConfirmation(false);
+    setResendState('idle');
+    setResendMessage('');
     setIsLoading(true);
 
     try {
       const { error } = await signIn(email, password);
       if (error) {
-        setError(error.message);
+        if (isEmailNotConfirmed(error)) {
+          setNeedsConfirmation(true);
+          setError('Your email address hasn\'t been confirmed yet. Check your inbox for the confirmation link, or resend it below.');
+        } else {
+          setError(error.message);
+        }
       }
     } catch (err: any) {
       setError('An unexpected error occurred');
@@ -32,9 +50,24 @@ export default function LoginPage() {
     }
   };
 
+  const handleResend = async () => {
+    setResendState('sending');
+    setResendMessage('');
+    const { error } = await resendConfirmation(email);
+    if (error) {
+      setResendState('idle');
+      setResendMessage(error.message || 'Could not resend the email. Please try again shortly.');
+      return;
+    }
+    setResendState('sent');
+    setResendMessage(`Confirmation email sent to ${email}. It may take a minute to arrive — check your spam folder too.`);
+  };
+
   useEffect(() => {
     if (user && profile) {
-      navigate(`/${profile.role}`, { replace: true });
+      // Respect the profile-completion gate rather than jumping straight to the role
+      // dashboard (ProtectedRoute would bounce an incomplete profile anyway).
+      navigate(profile.profile_completed ? `/${profile.role}` : '/complete-profile', { replace: true });
     }
   }, [user, profile, navigate]);
 
@@ -62,9 +95,34 @@ export default function LoginPage() {
           <CardContent className="mt-6">
             <form onSubmit={handleLogin} className="space-y-6">
               {error && (
-                <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
-                  <AlertCircle className="w-4 h-4 flex-shrink-0" />
-                  <span>{error}</span>
+                <div className={`flex flex-col gap-2 p-3 border rounded-lg text-sm ${needsConfirmation ? 'bg-amber-50 border-amber-200 text-amber-800' : 'bg-red-50 border-red-200 text-red-700'}`}>
+                  <div className="flex items-center gap-2">
+                    <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                    <span>{error}</span>
+                  </div>
+                  {needsConfirmation && (
+                    <div className="pl-6">
+                      {resendState === 'sent' ? (
+                        <p className="flex items-center gap-1.5 text-green-700">
+                          <MailCheck className="w-4 h-4 flex-shrink-0" /> {resendMessage}
+                        </p>
+                      ) : (
+                        <>
+                          <button
+                            type="button"
+                            onClick={handleResend}
+                            disabled={resendState === 'sending'}
+                            className="inline-flex items-center gap-1.5 font-medium text-amber-900 underline underline-offset-2 hover:text-amber-950 disabled:opacity-60"
+                          >
+                            {resendState === 'sending'
+                              ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Sending…</>
+                              : <>Resend confirmation email</>}
+                          </button>
+                          {resendMessage && <p className="mt-1 text-red-600">{resendMessage}</p>}
+                        </>
+                      )}
+                    </div>
+                  )}
                 </div>
               )}
 
