@@ -15,6 +15,10 @@ interface UserProfile {
     staff_id?: string;
     passport_photo_url?: string;
     email_confirmed_at?: string | null;
+    // False until the user has filled in role + required details. Legacy users who were
+    // created in auth but never got a profile row are backfilled with this set to false,
+    // which routes them through the Complete Profile page on next login.
+    profile_completed?: boolean;
 }
 
 interface AuthContextType {
@@ -209,55 +213,35 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             return { error: { message: 'Invalid role selected.' } };
         }
 
-        const { data, error } = await supabase.auth.signUp({
+        // Pass the profile details as auth metadata. The server-side handle_new_user()
+        // trigger reads this and creates the profiles row reliably — this works even with
+        // email confirmation enabled (where there is no session at signup time, so a
+        // client-side insert into profiles would be blocked by RLS and silently lost).
+        //
+        // NOTE: passport_photo_url is intentionally NOT sent as metadata — it is a base64
+        // data URL that can be megabytes, and user_metadata is embedded in the JWT. The
+        // photo is set later on the profile page instead.
+        const { error } = await supabase.auth.signUp({
             email,
             password,
+            options: {
+                data: {
+                    role,
+                    full_name: fullName,
+                    department,
+                    matric_number: matricNumber,
+                    organization,
+                    staff_id: staffId,
+                },
+            },
         });
 
         if (error) return { error };
 
-        if (data.user) {
-            const { error: profileError } = await supabase
-                .from('profiles')
-                .insert({
-                    id: data.user.id,
-                    email,
-                    role,
-                    full_name: fullName,
-                    department,
-                    matric_number: matricNumber,
-                    organization,
-                    staff_id: staffId,
-                    passport_photo_url: passportPhotoUrl,
-                    email_confirmed_at: null,
-                });
-
-            // If Supabase insert fails (e.g. no table), save to mockDb
-            if (profileError) {
-                console.warn('Saving profile to mockDb due to Supabase error:', profileError);
-                const db = getMockDb();
-                db.profiles.push({
-                    id: data.user.id,
-                    email,
-                    role,
-                    full_name: fullName,
-                    department,
-                    matric_number: matricNumber,
-                    organization,
-                    staff_id: staffId,
-                    passport_photo_url: passportPhotoUrl,
-                    email_confirmed_at: null,
-                });
-                saveMockDb(db);
-            }
-
-            // Explicitly fetch and set profile to avoid race condition with onAuthStateChange
-            const profileData = await fetchProfile(data.user.id);
-            if (profileData) {
-                setProfile(profileData);
-            }
-        }
-
+        // With email confirmation on there is no session yet, so we do not fetch/set the
+        // profile here — the user confirms their email, then signs in. `passportPhotoUrl`
+        // is accepted for signature compatibility but applied on first profile edit.
+        void passportPhotoUrl;
         return { error: null };
     }
 

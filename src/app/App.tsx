@@ -6,6 +6,7 @@ import SignUpPage from './components/SignUpPage';
 import ForgotPasswordPage from './components/ForgotPasswordPage';
 import ResetPasswordPage from './components/ResetPasswordPage';
 import ProfilePage from './components/ProfilePage';
+import CompleteProfilePage from './components/CompleteProfilePage';
 import AdminDashboard from './components/AdminDashboard';
 import StudentDashboard from './components/StudentDashboard';
 import SupervisorDashboard from './components/SupervisorDashboard';
@@ -32,11 +33,23 @@ function ProtectedRoute({ children, allowedRole }: { children: React.ReactNode; 
     return <Navigate to="/" />;
   }
 
+  // Users whose profile was never fully provisioned (e.g. legacy accounts backfilled
+  // after profiles moved server-side) must finish it before reaching any dashboard.
+  if (!profile.profile_completed) {
+    return <Navigate to="/complete-profile" />;
+  }
+
   if (profile.role !== allowedRole) {
     return <Navigate to={`/${profile.role}`} />;
   }
 
   return <>{children}</>;
+}
+
+// Where a signed-in user with a loaded profile belongs: the completion step if their
+// profile is unfinished, otherwise their role dashboard.
+function homePathFor(profile: { role: string; profile_completed?: boolean }) {
+  return profile.profile_completed ? `/${profile.role}` : '/complete-profile';
 }
 
 function AppRoutes() {
@@ -53,7 +66,7 @@ function AppRoutes() {
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
             </div>
           ) : user && profile ? (
-            <Navigate to={`/${profile.role}`} />
+            <Navigate to={homePathFor(profile)} />
           ) : (
             <LoginPage />
           )
@@ -62,6 +75,22 @@ function AppRoutes() {
       <Route path="/signup" element={<SignUpPage />} />
       <Route path="/forgot-password" element={<ForgotPasswordPage />} />
       <Route path="/reset-password" element={<ResetPasswordPage />} />
+      <Route
+        path="/complete-profile"
+        element={
+          loading ? (
+            <div className="min-h-screen flex items-center justify-center">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+            </div>
+          ) : !user || !profile ? (
+            <Navigate to="/" />
+          ) : profile.profile_completed ? (
+            <Navigate to={`/${profile.role}`} />
+          ) : (
+            <CompleteProfilePage />
+          )
+        }
+      />
       <Route path="/profile" element={user ? <ProfilePage /> : <Navigate to="/" />} />
 
       {/* Protected routes — loading handled by ProtectedRoute */}
