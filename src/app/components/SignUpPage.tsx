@@ -1,6 +1,6 @@
 import { useState, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { BookOpen, AlertCircle, Loader2, Users, Shield, Camera } from 'lucide-react';
+import { BookOpen, AlertCircle, Loader2, Users, Camera } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -26,10 +26,13 @@ export default function SignUpPage() {
     const navigate = useNavigate();
     const photoInputRef = useRef<HTMLInputElement>(null);
 
+    // Admin is intentionally NOT self-registerable. Allowing visitors to pick the admin
+    // role here would hand anyone full system access (all students, all entries, supervisor
+    // assignment). Admins must be provisioned server-side (DB seed / invite). Supervisors
+    // self-register and are then linked to students by an admin.
     const roles = [
         { id: 'student', name: 'Student', icon: BookOpen, color: 'bg-blue-500' },
         { id: 'supervisor', name: 'Supervisor', icon: Users, color: 'bg-green-500' },
-        { id: 'admin', name: 'Admin', icon: Shield, color: 'bg-purple-500' },
     ];
 
     // Convert file to base64 data URL for storage
