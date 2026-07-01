@@ -25,6 +25,23 @@ alter table public.profiles
 alter table public.profiles
   add column if not exists email_confirmed_at timestamptz;
 
+-- ── 1b. Ensure the notifications table exists ───────────────────────────────
+-- The app's notificationService expects this table. If it was never created,
+-- every notification call has been silently falling back to localStorage. This
+-- also prevents the RLS section below from failing on a missing relation.
+-- (profiles / logbook_entries / feedback are assumed to already exist.)
+create table if not exists public.notifications (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users (id) on delete cascade,
+  title text not null default '',
+  message text not null default '',
+  type text not null default 'info',
+  read boolean not null default false,
+  entry_id uuid,
+  created_at timestamptz not null default now()
+);
+create index if not exists notifications_user_id_idx on public.notifications (user_id);
+
 -- ── 2. Helpers (SECURITY DEFINER: they bypass RLS internally, so policies that
 --       call them do not recurse) ────────────────────────────────────────────
 create or replace function public.is_admin()
