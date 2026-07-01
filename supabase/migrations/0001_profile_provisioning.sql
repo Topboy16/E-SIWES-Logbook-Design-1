@@ -20,10 +20,56 @@
 -- ============================================================================
 
 -- ── 1. Columns ──────────────────────────────────────────────────────────────
+-- The profiles table was originally created by hand with only a subset of the
+-- columns the app writes. Add every expected column (idempotently) so profile
+-- completion, signup, and supervisor assignment don't fail on a missing column
+-- (which the app silently swallows as a mock-DB fallback).
 alter table public.profiles
-  add column if not exists profile_completed boolean not null default false;
+  add column if not exists full_name          text not null default '';
 alter table public.profiles
-  add column if not exists email_confirmed_at timestamptz;
+  add column if not exists department          text;
+alter table public.profiles
+  add column if not exists supervisor_id       uuid references public.profiles (id) on delete set null;
+alter table public.profiles
+  add column if not exists matric_number       text;
+alter table public.profiles
+  add column if not exists organization        text;
+alter table public.profiles
+  add column if not exists staff_id            text;
+alter table public.profiles
+  add column if not exists passport_photo_url  text;
+alter table public.profiles
+  add column if not exists profile_completed   boolean not null default false;
+alter table public.profiles
+  add column if not exists email_confirmed_at  timestamptz;
+
+create index if not exists profiles_supervisor_id_idx on public.profiles (supervisor_id);
+
+-- ── 1a. Reconcile logbook_entries + feedback columns ────────────────────────
+-- Same rationale as profiles: these tables were created ad hoc and may be missing
+-- columns the app writes. All adds are idempotent and use safe defaults so they
+-- succeed even if the tables already contain rows.
+alter table public.logbook_entries
+  add column if not exists title        text not null default '';
+alter table public.logbook_entries
+  add column if not exists description  text not null default '';
+alter table public.logbook_entries
+  add column if not exists entry_date   date;
+alter table public.logbook_entries
+  add column if not exists hours_worked numeric not null default 0;
+alter table public.logbook_entries
+  add column if not exists status       text not null default 'Pending';
+alter table public.logbook_entries
+  add column if not exists attachments  jsonb not null default '[]'::jsonb;
+alter table public.logbook_entries
+  add column if not exists created_at   timestamptz not null default now();
+alter table public.logbook_entries
+  add column if not exists updated_at   timestamptz not null default now();
+
+alter table public.feedback
+  add column if not exists comment    text not null default '';
+alter table public.feedback
+  add column if not exists created_at timestamptz not null default now();
 
 -- ── 1b. Ensure the notifications table exists ───────────────────────────────
 -- The app's notificationService expects this table. If it was never created,
