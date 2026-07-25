@@ -6,6 +6,7 @@ import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { useAuth } from '../contexts/AuthContext';
+import { uploadPassportPhoto } from '../services/storageService';
 
 export default function SignUpPage() {
     const [fullName, setFullName] = useState('');
@@ -35,15 +36,7 @@ export default function SignUpPage() {
         { id: 'supervisor', name: 'Supervisor', icon: Users, color: 'bg-green-500' },
     ];
 
-    // Convert file to base64 data URL for storage
-    function fileToDataUrl(file: File): Promise<string> {
-        return new Promise((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onload = () => resolve(reader.result as string);
-            reader.onerror = reject;
-            reader.readAsDataURL(file);
-        });
-    }
+    // No longer needed — photo upload handled by storageService
 
     const handlePhotoSelected = (file: File) => {
         if (!file.type.startsWith('image/')) {
@@ -76,21 +69,19 @@ export default function SignUpPage() {
         setIsLoading(true);
 
         try {
-            // Convert passport photo to base64 if selected
-            let passportPhotoUrl = '';
-            if (passportPhoto) {
-                passportPhotoUrl = await fileToDataUrl(passportPhoto);
-            }
-
-            const { error } = await signUp(email, password, selectedRole, fullName, department, matricNumber, organization, staffId, passportPhotoUrl);
-
+            // Sign up first — gets the user's ID from auth
+            const { error } = await signUp(email, password, selectedRole, fullName, department, matricNumber, organization, staffId, '');
             if (error) {
                 setError(error.message);
-            } else {
-                setSuccess(true);
-                // Redirect to login after 2 seconds
-                setTimeout(() => navigate('/'), 2000);
+                return;
             }
+
+            // Passport photo upload is deferred to profile completion page
+            // (user ID is not available here without a session when email confirmation is ON)
+            void passportPhoto;
+            setSuccess(true);
+            // Redirect to login after 2 seconds
+            setTimeout(() => navigate('/'), 2000);
         } catch (err) {
             setError('An unexpected error occurred');
         } finally {

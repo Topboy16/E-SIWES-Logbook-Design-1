@@ -6,6 +6,7 @@ import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { useAuth } from '../contexts/AuthContext';
+import { uploadPassportPhoto } from '../services/storageService';
 
 // Roles a user may self-assign. Admin is deliberately excluded — admins are provisioned
 // server-side, never self-selected (mirrors the SignUpPage / signUp() restriction).
@@ -46,14 +47,7 @@ export default function CompleteProfilePage() {
     if (profile.passport_photo_url) setPassportPreview(profile.passport_photo_url);
   }, [profile]);
 
-  function fileToDataUrl(file: File): Promise<string> {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(reader.result as string);
-      reader.onerror = reject;
-      reader.readAsDataURL(file);
-    });
-  }
+  // fileToDataUrl removed — photo upload now uses storageService (Supabase Storage)
 
   const handlePhotoSelected = (file: File) => {
     if (!file.type.startsWith('image/')) {
@@ -85,8 +79,15 @@ export default function CompleteProfilePage() {
 
     setIsLoading(true);
     try {
-      let passportPhotoUrl = passportPreview;
-      if (passportPhoto) passportPhotoUrl = await fileToDataUrl(passportPhoto);
+      let passportPhotoUrl = passportPreview.startsWith('http') ? passportPreview : '';
+      if (passportPhoto && user?.id) {
+        try {
+          passportPhotoUrl = await uploadPassportPhoto(user.id, passportPhoto);
+        } catch (uploadErr: any) {
+          console.warn('Photo upload failed, skipping:', uploadErr?.message);
+          // Non-fatal — continue saving profile without photo
+        }
+      }
 
       const { error: updateError } = await updateProfile({
         full_name: fullName.trim(),

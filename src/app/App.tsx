@@ -5,6 +5,7 @@ import LoginPage from './components/LoginPage';
 import SignUpPage from './components/SignUpPage';
 import ForgotPasswordPage from './components/ForgotPasswordPage';
 import ResetPasswordPage from './components/ResetPasswordPage';
+import ConfirmEmailPage from './components/ConfirmEmailPage';
 import ProfilePage from './components/ProfilePage';
 import CompleteProfilePage from './components/CompleteProfilePage';
 import AdminDashboard from './components/AdminDashboard';
@@ -75,6 +76,7 @@ function AppRoutes() {
       <Route path="/signup" element={<SignUpPage />} />
       <Route path="/forgot-password" element={<ForgotPasswordPage />} />
       <Route path="/reset-password" element={<ResetPasswordPage />} />
+      <Route path="/confirm-email" element={<ConfirmEmailPage />} />
       <Route
         path="/complete-profile"
         element={

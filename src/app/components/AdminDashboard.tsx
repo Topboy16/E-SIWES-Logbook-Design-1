@@ -16,7 +16,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from './ui/dialog';
 import { Label } from './ui/label';
 import { useAuth } from '../contexts/AuthContext';
-import { getAllStudents, getAllSupervisors, getAllEntries, getSystemStats, assignSupervisor, getUnassignedStudents } from '../services/adminService';
+import { getAllStudents, getAllSupervisors, getAllEntries, getSystemStats, assignSupervisor, getUnassignedStudents, promoteUserRole } from '../services/adminService';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line, Legend } from 'recharts';
 import NotificationBell from './NotificationBell';
 import ReminderPanel from './ReminderPanel';
@@ -52,6 +52,10 @@ export default function AdminDashboard() {
   const [selectedSupervisorId, setSelectedSupervisorId] = useState('');
   const [assigning, setAssigning] = useState(false);
 
+  // Promote-to-admin dialog
+  const [promoteDialog, setPromoteDialog] = useState<any>(null);
+  const [promoting, setPromoting] = useState(false);
+
   useEffect(() => { loadData(); }, []);
 
   async function loadData() {
@@ -82,6 +86,17 @@ export default function AdminDashboard() {
       await loadData();
     } catch (err: any) { setError(err.message); }
     finally { setAssigning(false); }
+  };
+
+  const handlePromote = async () => {
+    if (!promoteDialog) return;
+    setPromoting(true);
+    try {
+      await promoteUserRole(promoteDialog.id, 'admin');
+      setPromoteDialog(null);
+      await loadData();
+    } catch (err: any) { setError(err.message); }
+    finally { setPromoting(false); }
   };
 
   // Filtered lists
@@ -389,7 +404,16 @@ export default function AdminDashboard() {
                 ) : (
                   <>
                     <Table>
-                      <TableHeader><TableRow><TableHead>Name</TableHead><TableHead>Email</TableHead><TableHead>Department / Org</TableHead><TableHead>Assigned Students</TableHead><TableHead>Unassigned Students</TableHead></TableRow></TableHeader>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Name</TableHead>
+                          <TableHead>Email</TableHead>
+                          <TableHead>Department / Org</TableHead>
+                          <TableHead>Assigned Students</TableHead>
+                          <TableHead>Unassigned Students</TableHead>
+                          <TableHead>Actions</TableHead>
+                        </TableRow>
+                      </TableHeader>
                       <TableBody>
                         {paginatedSupervisors.map((sup: any) => {
                           const assignedStudents = students.filter((s: any) => s.supervisor_id === sup.id);
@@ -418,6 +442,16 @@ export default function AdminDashboard() {
                                 ) : (
                                   <span className="text-xs text-green-600">All assigned ✓</span>
                                 )}
+                              </TableCell>
+                              <TableCell>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="gap-1 text-purple-700 border-purple-300 hover:bg-purple-50"
+                                  onClick={() => setPromoteDialog(sup)}
+                                >
+                                  Promote to Admin
+                                </Button>
                               </TableCell>
                             </TableRow>
                           );
@@ -494,6 +528,29 @@ export default function AdminDashboard() {
             <ReminderPanel students={students} supervisors={supervisors} />
           </TabsContent>
         </Tabs>
+
+        {/* Promote to Admin Confirmation Dialog */}
+        <Dialog open={!!promoteDialog} onOpenChange={(open) => !open && setPromoteDialog(null)}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Promote to Admin</DialogTitle>
+              <DialogDescription>
+                Are you sure you want to promote <strong>{promoteDialog?.full_name}</strong> to Admin?
+                They will gain full administrative access to all students, supervisors and logbook entries.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="flex gap-2 mt-4">
+              <Button
+                className="flex-1 bg-purple-600 hover:bg-purple-700"
+                disabled={promoting}
+                onClick={handlePromote}
+              >
+                {promoting ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Confirm Promotion'}
+              </Button>
+              <Button variant="outline" onClick={() => setPromoteDialog(null)}>Cancel</Button>
+            </div>
+          </DialogContent>
+        </Dialog>
 
         {/* Assign Supervisor Dialog */}
         <Dialog open={!!assignDialog} onOpenChange={(open) => !open && setAssignDialog(null)}>

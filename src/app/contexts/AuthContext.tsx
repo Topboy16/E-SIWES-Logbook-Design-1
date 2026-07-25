@@ -195,9 +195,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 }
                 setProfile({ ...profileData, email_confirmed_at: confirmedAt || profileData.email_confirmed_at });
             } else {
-                isSigningIn.current = false;
-                return { error: { message: 'Profile not found. Please sign up first or contact your administrator.' } };
+                // Self-heal: auth user exists but profile row is missing (transient DB trigger failure
+                // or account created before the trigger was installed). Synthesize a minimal incomplete
+                // profile so the user is routed to /complete-profile rather than locked out.
+                const syntheticProfile = {
+                    id: data.user.id,
+                    email: data.user.email || email,
+                    role: 'student' as const,
+                    full_name: email.split('@')[0],
+                    profile_completed: false,
+                    email_confirmed_at: data.user.email_confirmed_at ?? null,
+                };
+                // Best-effort insert into profiles table
+                supabase
+                    .from('profiles')
+                    .upsert(syntheticProfile, { onConflict: 'id' })
+                    .then(() => {})
+                    .catch(() => {});
+                setProfile(syntheticProfile);
             }
+
         }
 
         isSigningIn.current = false;
@@ -226,6 +243,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             email,
             password,
             options: {
+                emailRedirectTo: `${window.location.origin}/confirm-email`,
                 data: {
                     role,
                     full_name: fullName,

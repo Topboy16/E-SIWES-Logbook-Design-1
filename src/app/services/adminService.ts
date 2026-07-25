@@ -173,6 +173,25 @@ export async function assignSupervisor(studentId: string, supervisorId: string) 
     }
 }
 
+// Promote or change a user's role (admin only). The DB trigger enforces this.
+export async function promoteUserRole(userId: string, newRole: 'student' | 'supervisor' | 'admin') {
+    try {
+        const { error } = await supabase
+            .from('profiles')
+            .update({ role: newRole })
+            .eq('id', userId);
+        if (error) throw error;
+    } catch (err) {
+        console.warn('Fallback to mock DB for promoteUserRole');
+        const db = getMockDb();
+        const idx = db.profiles.findIndex((p: any) => p.id === userId);
+        if (idx !== -1) {
+            db.profiles[idx].role = newRole;
+            saveMockDb(db);
+        }
+    }
+}
+
 // ─── REMINDER HELPERS ─────────────────────────────────────────────────────────
 
 /**

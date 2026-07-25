@@ -456,6 +456,22 @@ export default function StudentDashboard() {
           </div>
         )}
 
+        {/* Supervisor Assignment Notice */}
+        {!loading && !profile?.supervisor_id && (
+          <div className="mb-6 flex items-start gap-3 p-4 bg-amber-50 border border-amber-200 rounded-lg">
+            <Zap className="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="text-sm font-semibold text-amber-800">Awaiting Supervisor Assignment</p>
+              <p className="text-xs text-amber-700 mt-0.5">
+                Your account is active but no supervisor has been assigned to you yet.
+                An institution administrator will assign your supervisor shortly.
+                You can still create logbook entries in the meantime.
+              </p>
+            </div>
+          </div>
+        )}
+
+
         {/* Student Info + Progress */}
         <Card className="mb-8 border-blue-100 bg-gradient-to-r from-blue-50 to-white">
           <CardContent className="p-6">
