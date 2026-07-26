@@ -1,11 +1,12 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { BookOpen, LogOut, Save, Loader2, AlertCircle, CheckCircle, ArrowLeft, Camera, User } from 'lucide-react';
+import { BookOpen, LogOut, Save, Loader2, AlertCircle, CheckCircle, ArrowLeft, Camera, User, KeyRound } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { useAuth } from '../contexts/AuthContext';
+import { uploadPassportPhoto } from '../services/storageService';
 
 export default function ProfilePage() {
   const navigate = useNavigate();
@@ -20,17 +21,21 @@ export default function ProfilePage() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [passportPreview, setPassportPreview] = useState<string>(profile?.passport_photo_url || '');
-  const [newPassportDataUrl, setNewPassportDataUrl] = useState<string>('');
+  const [newPassportFile, setNewPassportFile] = useState<File | null>(null);
+  const previewUrlRef = useRef<string>('');
   const photoInputRef = useRef<HTMLInputElement>(null);
 
-  function fileToDataUrl(file: File): Promise<string> {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(reader.result as string);
-      reader.onerror = reject;
-      reader.readAsDataURL(file);
-    });
-  }
+  // Sync profile fields when profile loads asynchronously
+  useEffect(() => {
+    if (profile) {
+      setFullName(profile.full_name || '');
+      setDepartment(profile.department || '');
+      setMatricNumber(profile.matric_number || '');
+      setOrganization(profile.organization || '');
+      setStaffId(profile.staff_id || '');
+      if (profile.passport_photo_url) setPassportPreview(profile.passport_photo_url);
+    }
+  }, [profile?.id]);
 
   const handlePhotoSelected = async (file: File) => {
     if (!file.type.startsWith('image/')) {
@@ -41,10 +46,12 @@ export default function ProfilePage() {
       setError('Passport photo must be under 2MB.');
       return;
     }
-    const url = URL.createObjectURL(file);
-    setPassportPreview(url);
-    const dataUrl = await fileToDataUrl(file);
-    setNewPassportDataUrl(dataUrl);
+    // Revoke previous preview URL to avoid memory leak
+    if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current);
+    const objectUrl = URL.createObjectURL(file);
+    previewUrlRef.current = objectUrl;
+    setPassportPreview(objectUrl);
+    setNewPassportFile(file);
   };
 
   const handleSave = async (e: React.FormEvent) => {
@@ -67,9 +74,16 @@ export default function ProfilePage() {
         updates.organization = organization;
         updates.staff_id = staffId;
       }
-      // Include passport photo if changed
-      if (newPassportDataUrl) {
-        updates.passport_photo_url = newPassportDataUrl;
+
+      // Upload passport photo to Supabase Storage if changed
+      if (newPassportFile && profile?.id) {
+        try {
+          const photoUrl = await uploadPassportPhoto(profile.id, newPassportFile);
+          updates.passport_photo_url = photoUrl;
+        } catch (uploadErr: any) {
+          console.warn('Photo upload failed, skipping:', uploadErr?.message);
+          // Non-fatal — continue saving other profile fields
+        }
       }
 
       const { error: updateError } = await updateProfile(updates as any);
@@ -223,6 +237,19 @@ export default function ProfilePage() {
                   <><Save className="w-4 h-4 mr-2" /> Save Changes</>
                 )}
               </Button>
+
+              {/* Change Password */}
+              <div className="pt-2 border-t border-gray-100">
+                <p className="text-xs text-gray-500 mb-2">Need to update your password?</p>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full gap-2"
+                  onClick={() => navigate('/forgot-password')}
+                >
+                  <KeyRound className="w-4 h-4" /> Change Password
+                </Button>
+              </div>
             </form>
           </CardContent>
         </Card>

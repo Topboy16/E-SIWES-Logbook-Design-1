@@ -5,8 +5,14 @@ export const getMockDb = () => {
     feedback: [],
     notifications: [],
   };
-  const stored = localStorage.getItem('esiwes_mock_db');
-  return stored ? JSON.parse(stored) : defaultDb;
+  try {
+    const stored = localStorage.getItem('esiwes_mock_db');
+    return stored ? JSON.parse(stored) : defaultDb;
+  } catch (err) {
+    console.warn('[mockDb] Corrupted localStorage detected — resetting mock DB:', err);
+    localStorage.removeItem('esiwes_mock_db');
+    return defaultDb;
+  }
 };
 
 // Seed a default admin account if none exists in the mock DB.

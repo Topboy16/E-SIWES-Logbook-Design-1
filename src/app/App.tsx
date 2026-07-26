@@ -11,6 +11,20 @@ import CompleteProfilePage from './components/CompleteProfilePage';
 import AdminDashboard from './components/AdminDashboard';
 import StudentDashboard from './components/StudentDashboard';
 import SupervisorDashboard from './components/SupervisorDashboard';
+import { BookOpen } from 'lucide-react';
+
+// Branded full-screen loading spinner
+function LoadingScreen() {
+  return (
+    <div className="min-h-screen flex flex-col items-center justify-center gap-4 bg-gradient-to-br from-blue-50 to-white">
+      <div className="w-16 h-16 bg-blue-600 rounded-full flex items-center justify-center shadow-lg">
+        <BookOpen className="w-9 h-9 text-white" />
+      </div>
+      <div className="animate-spin rounded-full h-7 w-7 border-b-2 border-blue-600" />
+      <p className="text-sm text-gray-400 tracking-wide">Loading e-SIWES...</p>
+    </div>
+  );
+}
 
 // Seed admin profile on first load if none exists
 const adminEmail = import.meta.env.VITE_ADMIN_EMAIL;
@@ -22,13 +36,7 @@ if (adminEmail) {
 function ProtectedRoute({ children, allowedRole }: { children: React.ReactNode; allowedRole: string }) {
   const { user, profile, loading } = useAuth();
 
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-      </div>
-    );
-  }
+  if (loading) return <LoadingScreen />;
 
   if (!user || !profile) {
     return <Navigate to="/" />;
@@ -63,9 +71,7 @@ function AppRoutes() {
         path="/"
         element={
           loading ? (
-            <div className="min-h-screen flex items-center justify-center">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-            </div>
+            <LoadingScreen />
           ) : user && profile ? (
             <Navigate to={homePathFor(profile)} />
           ) : (
@@ -81,9 +87,7 @@ function AppRoutes() {
         path="/complete-profile"
         element={
           loading ? (
-            <div className="min-h-screen flex items-center justify-center">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-            </div>
+            <LoadingScreen />
           ) : !user || !profile ? (
             <Navigate to="/" />
           ) : profile.profile_completed ? (
@@ -112,14 +116,26 @@ function AppRoutes() {
           </ProtectedRoute>
         }
       />
-      <Route
-        path="/supervisor"
+      <Route path="/supervisor"
         element={
           <ProtectedRoute allowedRole="supervisor">
             <SupervisorDashboard />
           </ProtectedRoute>
         }
       />
+      {/* 404 catch-all */}
+      <Route path="*" element={
+        <div className="min-h-screen flex flex-col items-center justify-center gap-4 bg-gradient-to-br from-blue-50 to-white">
+          <div className="w-16 h-16 bg-blue-600 rounded-full flex items-center justify-center shadow-lg">
+            <BookOpen className="w-9 h-9 text-white" />
+          </div>
+          <h1 className="text-6xl font-bold text-gray-300">404</h1>
+          <p className="text-gray-500 text-lg">Page not found</p>
+          <a href="/" className="mt-2 px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm">
+            Go to Sign In
+          </a>
+        </div>
+      } />
     </Routes>
   );
 }

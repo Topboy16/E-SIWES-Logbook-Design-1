@@ -154,7 +154,7 @@ export async function getSystemStats() {
     }
 }
 
-// Assign a supervisor to a student
+// Assign a supervisor to a student and trigger instant email + in-app notification
 export async function assignSupervisor(studentId: string, supervisorId: string) {
     try {
         const { error } = await supabase
@@ -162,6 +162,18 @@ export async function assignSupervisor(studentId: string, supervisorId: string) 
             .update({ supervisor_id: supervisorId })
             .eq('id', studentId);
         if (error) throw error;
+
+        // Trigger instant email notification + in-app notification via Edge Function
+        supabase.functions.invoke('send-reminder', {
+            body: {
+                assignmentNotification: {
+                    studentId,
+                    supervisorId,
+                },
+            },
+        }).catch((err) => {
+            console.warn('[adminService] Could not send supervisor assignment email:', err);
+        });
     } catch (err) {
         console.warn('Fallback to mock DB for assignSupervisor');
         const db = getMockDb();
@@ -172,6 +184,7 @@ export async function assignSupervisor(studentId: string, supervisorId: string) 
         }
     }
 }
+
 
 // Promote or change a user's role (admin only). The DB trigger enforces this.
 export async function promoteUserRole(userId: string, newRole: 'student' | 'supervisor' | 'admin') {

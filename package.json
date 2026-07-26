@@ -5,7 +5,9 @@
   "type": "module",
   "scripts": {
     "build": "vite build",
-    "dev": "vite"
+    "dev": "vite",
+    "db:push": "supabase db push",
+    "db:verify": "supabase db diff --schema public"
   },
   "dependencies": {
     "@emotion/react": "11.14.0",
@@ -68,30 +70,18 @@
     "tailwind-merge": "3.2.0",
     "tw-animate-css": "1.3.8",
     "typescript": "^6.0.3",
-    "vaul": "1.1.2"
+    "vaul": "1.1.2",
+    "react": "18.3.1",
+    "react-dom": "18.3.1"
   },
   "devDependencies": {
     "@tailwindcss/vite": "4.1.12",
     "@vitejs/plugin-react": "4.7.0",
     "supabase": "^2.100.1",
     "tailwindcss": "4.1.12",
+    "typescript": "^6.0.3",
     "vite": "^6.4.2"
   },
-  "peerDependencies": {
-    "react": "18.3.1",
-    "react-dom": "18.3.1"
-  },
-  "peerDependenciesMeta": {
-    "react": {
-      "optional": true
-    },
-    "react-dom": {
-      "optional": true
-    }
-  },
-  "pnpm": {
-    "overrides": {
-      "vite": "6.3.5"
-    }
-  }
+  "peerDependencies": {},
+  "peerDependenciesMeta": {}
 }

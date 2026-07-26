@@ -10,10 +10,7 @@ import { Label } from './ui/label';
 import { Badge } from './ui/badge';
 import { RadioGroup, RadioGroupItem } from './ui/radio-group';
 import { supabase } from '../../supabase';
-import {
-  getStudentsMissingLogToday,
-  getSupervisorsWithMoreThanOneStudent,
-} from '../services/adminService';
+
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -28,7 +25,7 @@ interface SendResult {
 
 interface ReminderPanelProps {
   students: any[];
-  supervisors: any[];
+  supervisors?: any[];
 }
 
 // ─── Default message templates ────────────────────────────────────────────────
@@ -117,57 +114,38 @@ export default function ReminderPanel({ students, supervisors }: ReminderPanelPr
     setResults(null);
 
     try {
-      // Resolve actual recipient lists
-      let studentRecipients: any[] = [];
-      let supervisorRecipients: any[] = [];
-
-      if (includeStudents) {
-        studentRecipients =
-          studentScope === 'all' ? students : await getStudentsMissingLogToday();
-      }
-      if (includeSupervisors) {
-        supervisorRecipients = await getSupervisorsWithMoreThanOneStudent();
-      }
-
-      // Build payloads (only non-empty groups)
-      const payloads = [];
-      if (includeStudents && studentRecipients.length > 0) {
-        payloads.push({
-          role: 'student',
-          recipients: studentRecipients.map((r) => ({
-            id: r.id,
-            email: r.email,
-            full_name: r.full_name || r.email,
-          })),
-          subject: studentSubject,
-          body: studentBody,
-        });
-      }
-      if (includeSupervisors && supervisorRecipients.length > 0) {
-        payloads.push({
-          role: 'supervisor',
-          recipients: supervisorRecipients.map((r) => ({
-            id: r.id,
-            email: r.email,
-            full_name: r.full_name || r.email,
-          })),
-          subject: supervisorSubject,
-          body: supervisorBody,
-        });
-      }
-
-      if (payloads.length === 0) {
-        setSendError('No eligible recipients found for the selected options.');
+      if (!includeStudents && !includeSupervisors) {
+        setSendError('Select at least one group to send reminders to.');
         setSending(false);
         return;
       }
 
-      // Call edge function
+      // Build the request body — the server resolves who gets emailed.
+      // We send SCOPE identifiers, not email addresses.
+      const requestBody: Record<string, string> = {
+        studentSubject,
+        studentBody,
+        supervisorSubject,
+        supervisorBody,
+      };
+
+      if (includeStudents) {
+        requestBody.studentScope = studentScope === 'all' ? 'all_students' : 'missing_log';
+      }
+      if (includeSupervisors) {
+        requestBody.supervisorScope = 'all_supervisors';
+      }
+
       const { data, error } = await supabase.functions.invoke('send-reminder', {
-        body: { payloads },
+        body: requestBody,
       });
 
       if (error) throw new Error(error.message);
+      if (!data?.results) throw new Error('Unexpected response from reminder service.');
+      if (data.results.length === 0) {
+        setSendError('No eligible recipients found for the selected options.');
+        return;
+      }
       setResults(data.results as SendResult[]);
     } catch (err: any) {
       setSendError(err.message || 'An unexpected error occurred. Please try again.');
@@ -175,6 +153,7 @@ export default function ReminderPanel({ students, supervisors }: ReminderPanelPr
       setSending(false);
     }
   }
+
 
   // ─── Render ───────────────────────────────────────────────────────────────
 

@@ -29,16 +29,14 @@ export default function ConfirmEmailPage() {
         // 2. Check session status
         const { data: { session } } = await supabase.auth.getSession();
         if (mounted) {
-          if (session?.user?.email_confirmed_at || session?.user) {
+          if (session?.user) {
+            setIsConfirmed(true);
+          } else if (window.location.hash.includes('access_token') || window.location.hash.includes('type=signup')) {
+            // Legacy hash-fragment flow (implicit grant) — still valid
             setIsConfirmed(true);
           } else {
-            // Check hash fragment fallback
-            if (window.location.hash.includes('access_token') || window.location.hash.includes('type=signup')) {
-              setIsConfirmed(true);
-            } else {
-              // Default to confirmed display if user clicked valid confirmation link
-              setIsConfirmed(true);
-            }
+            // No session and no recognisable auth tokens — link is invalid, expired or already used
+            setError('This confirmation link is invalid or has already been used. Please sign in, or request a new confirmation email from the Sign Up page.');
           }
         }
       } catch (err: any) {

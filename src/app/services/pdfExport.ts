@@ -17,7 +17,8 @@ export function exportLogbookPDF(
   matricNumber: string,
   email: string,
   entries: any[],
-  stats: { totalEntries: number; approved: number; pending: number; totalHours: number }
+  stats: { totalEntries: number; approved: number; pending: number; totalHours: number },
+  supervisorName?: string
 ) {
   const printWindow = window.open('', '_blank');
   if (!printWindow) {
@@ -25,14 +26,22 @@ export function exportLogbookPDF(
     return;
   }
 
-  const approvedEntries = entries.filter(e => e.status === 'Approved');
-  const sortedEntries = [...(approvedEntries.length > 0 ? approvedEntries : entries)]
+  // Include ALL entries (approved + pending) — sort by date ascending
+  const sortedEntries = [...entries]
     .sort((a, b) => new Date(a.entry_date).getTime() - new Date(b.entry_date).getTime());
+
+  function formatDate(dateStr: string) {
+    try {
+      return new Date(dateStr + 'T00:00:00').toLocaleDateString('en-GB', {
+        day: '2-digit', month: 'short', year: 'numeric'
+      });
+    } catch { return dateStr; }
+  }
 
   const entriesHTML = sortedEntries.map((entry, i) => `
     <tr>
       <td style="padding:8px;border:1px solid #ddd;text-align:center">${i + 1}</td>
-      <td style="padding:8px;border:1px solid #ddd">${escapeHTML(entry.entry_date)}</td>
+      <td style="padding:8px;border:1px solid #ddd">${escapeHTML(formatDate(entry.entry_date))}</td>
       <td style="padding:8px;border:1px solid #ddd"><strong>${escapeHTML(entry.title)}</strong><br/><span style="color:#555;font-size:12px">${escapeHTML(entry.description)}</span></td>
       <td style="padding:8px;border:1px solid #ddd;text-align:center">${Number(entry.hours_worked) || 0}</td>
       <td style="padding:8px;border:1px solid #ddd;text-align:center;color:${entry.status === 'Approved' ? 'green' : entry.status === 'Rejected' ? 'red' : '#888'}">${escapeHTML(entry.status)}</td>
@@ -115,7 +124,7 @@ export function exportLogbookPDF(
         <div>
           <div class="signature-block">
             <p><strong>Supervisor Signature</strong></p>
-            <p>_______________________</p>
+            <p>${escapeHTML(supervisorName || '_______________________')}</p>
           </div>
         </div>
       </div>
@@ -123,9 +132,8 @@ export function exportLogbookPDF(
     </html>
   `;
 
+  // Set onload BEFORE writing content to avoid race condition
+  printWindow.onload = () => { setTimeout(() => printWindow.print(), 100); };
   printWindow.document.write(html);
   printWindow.document.close();
-  printWindow.onload = () => {
-    printWindow.print();
-  };
 }

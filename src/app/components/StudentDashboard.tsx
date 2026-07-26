@@ -435,7 +435,7 @@ export default function StudentDashboard() {
                   </form>
                 </DialogContent>
               </Dialog>
-              <Button variant="outline" size="sm" className="gap-1" onClick={() => exportLogbookPDF(profile?.full_name || '', profile?.department || '', profile?.matric_number || '', profile?.email || '', entries, stats)}>
+              <Button variant="outline" size="sm" className="gap-1" onClick={() => exportLogbookPDF(profile?.full_name || '', profile?.department || '', profile?.matric_number || '', profile?.email || '', entries, stats, (profile as any)?.supervisor_name || '')}>
                 <Download className="w-4 h-4" /> Export PDF
               </Button>
               <NotificationBell />

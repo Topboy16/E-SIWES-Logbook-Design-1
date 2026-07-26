@@ -50,15 +50,21 @@ export async function uploadFiles(
   entryId: string,
   files: File[]
 ): Promise<Attachment[]> {
-  const attachments: Attachment[] = [];
 
-  for (const file of files) {
+  // Upload files in parallel for better performance
+  const results = await Promise.all(files.map(async (file) => {
     const validation = validateFile(file);
     if (validation) throw new Error(validation);
 
+    // Sanitise filename: keep extension, replace everything else with a UUID to prevent path traversal
+    const ext = file.name.split('.').pop()?.toLowerCase()?.replace(/[^a-z0-9]/g, '') || 'bin';
+    const safeId = (typeof crypto !== 'undefined' && crypto.randomUUID)
+      ? crypto.randomUUID()
+      : `${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
+    const filePath = `${studentId}/${entryId}/${safeId}.${ext}`;
+
     try {
       // Try Supabase Storage upload
-      const filePath = `${studentId}/${entryId}/${Date.now()}-${file.name}`;
       const { error: uploadError } = await supabase.storage
         .from(BUCKET_NAME)
         .upload(filePath, file, { cacheControl: '3600', upsert: false });
@@ -69,28 +75,28 @@ export async function uploadFiles(
         .from(BUCKET_NAME)
         .getPublicUrl(filePath);
 
-      attachments.push({
-        id: `att-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
+      return {
+        id: safeId,
         name: file.name,
         url: urlData.publicUrl,
         type: file.type,
         size: file.size,
-      });
+      } as Attachment;
     } catch {
-      // Fallback: store as base64 data URL in localStorage
-      console.warn('Fallback to local storage for file upload');
+      // Fallback: store as base64 data URL (warn — large files will exhaust localStorage)
+      console.warn(`Fallback to base64 for file: ${file.name}. Consider creating the '${BUCKET_NAME}' Supabase Storage bucket.`);
       const dataUrl = await fileToDataUrl(file);
-      attachments.push({
-        id: `att-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
+      return {
+        id: safeId,
         name: file.name,
         url: dataUrl,
         type: file.type,
         size: file.size,
-      });
+      } as Attachment;
     }
-  }
+  }));
 
-  return attachments;
+  return results;
 }
 
 // ---------- DELETE ----------

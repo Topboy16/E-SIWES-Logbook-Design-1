@@ -1,6 +1,31 @@
 import { supabase } from '../../supabase';
 
-const AVATAR_BUCKET = 'avatars';
+const AVATAR_BUCKET      = 'avatars';
+const ATTACHMENT_BUCKET  = 'logbook-attachments';
+
+/**
+ * Generates a short-lived signed URL for a private logbook attachment.
+ * @param storagePath  The path inside the bucket, e.g. "userId/entryId/uuid.pdf"
+ * @param expiresIn    Seconds until the URL expires (default: 1 hour)
+ */
+export async function getSignedAttachmentUrl(storagePath: string, expiresIn = 3600): Promise<string> {
+  // Strip any full URL prefix — we need just the path inside the bucket
+  const path = storagePath.includes(ATTACHMENT_BUCKET + '/')
+    ? storagePath.split(ATTACHMENT_BUCKET + '/')[1]
+    : storagePath;
+
+  const { data, error } = await supabase.storage
+    .from(ATTACHMENT_BUCKET)
+    .createSignedUrl(path, expiresIn);
+
+  if (error || !data?.signedUrl) {
+    console.warn('[storageService] Could not generate signed URL:', error?.message);
+    // Return the original URL as fallback (will fail for private bucket, but avoids crash)
+    return storagePath;
+  }
+  return data.signedUrl;
+}
+
 
 /**
  * Uploads a passport photo to Supabase Storage and returns the public URL.
